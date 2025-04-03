@@ -62,6 +62,7 @@ bool snnModel::latency(float* imageInput,size_t length, float* spikeInput, size_
 			_mm256_stream_ps(currentStrd + i, offsetReg);
 		}
 	}
+	_mm_free(spikeTime);
 	return true;
 }
 void snnModel::buildMyDefaultSNNModel()
