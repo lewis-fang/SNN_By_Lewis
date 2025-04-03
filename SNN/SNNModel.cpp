@@ -170,10 +170,6 @@ void snnModel::train()
 			}
 			for (int b = 0;b < batchSize;b++)
 			{
-	/*			for (SNNLayer layer : mySNNStructure)
-				{
-					layer.getdW().recordW(b);
-				}*/
 				C += vC[b];
 			}
 			
