@@ -48,18 +48,14 @@ private:
     QWidget* scatterContainer ;
     QScatter3DSeries* scatterSeries1;
     QScatter3DSeries* scatterSeries2;
-    Q3DScatter* scatter2;
-    QWidget* scatterContainer2;
-    QScatter3DSeries* scatterSeries3;
 
-    QChartView* myView1 ;
     QChartView* myView2 ;
-    QChartView* myView3 ;
+    QChartView* myView4;
 
-    QLineSeries* inSeries ;
     QLineSeries* memSeries ;
-    QLineSeries* spikeSeries ;
-
+    QScatterSeries* outSpikeScatters;
+   
+    void initPlotBoard();
 public slots:
     void loadMnst();
     void buildDefaultModel1();
