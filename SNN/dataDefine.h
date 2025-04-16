@@ -15,12 +15,14 @@
 
 #define MNISTBLOCK AlignVec(MNISTDIM*MNISTDIM,AlignBytes/sizeof(float))
 
-#define TIMESTEP 25
+//#define TIMESTEP 25
 #define OUTCLASS 10
 #define TAO 100
 #define NOBACKGGROUNDB
-#define PI 3.1415926
+#define PI 3.1415926f
 #define TRUCATE 100000
+#define LAYER1 784
+#define VTHR 5
 static std::default_random_engine gen;
 
 typedef struct dim
@@ -60,9 +62,9 @@ typedef struct Optimizer
 	float l2Lamda;
 	Optimizer()
 	{
-		beta1 = 0.9;
-		beta2 = 0.99;
-		sigma = 0.000001;
+		beta1 = 0.9f;
+		beta2 = 0.99f;
+		sigma = 0.000001f;
 		method = NooP;
 		l2Lamda = 0.0;
 	}

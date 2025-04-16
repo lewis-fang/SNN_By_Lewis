@@ -11,11 +11,14 @@ public:
 	~snnModel() {};
 
 public:
-	static bool latency(float* imageInput, size_t length, float* spikeInput, size_t T, float tao, float Vthr);
+	bool encodeInput(float* imageInput, size_t length, float* spikeInput);
+	bool latency(float* imageInput, size_t length, float* spikeInput, float tao, float Vthr);
+	bool binaryCode(char* imageInput, size_t length, float* spikeInput);
 	void buildMyDefaultSNNModel();
 
 	void fowardRecurrentSpikingSimd(tensor ts,int b);
 	void setInput(float* totalImg, float* ideal, int imgNum,int blockLength,int outLength);
+	void setBinaryInput(char* totalImg, float* ideal, int imgNum, int blockLength, int outLength);
 	void setBatchsize(int bxs) { batchSize = bxs; };
 	void setLearnRate(float lr) { learnRate = lr; };
 	void setMinLoss(float ml) { minLoss = ml; };
@@ -25,9 +28,13 @@ public:
 	void setUthr(float u) { Uthr = u; };
 	void setReset(int rst) { reset = rst; };
 	void setMaxEpoch(int maxepo) { maxEpoch = maxepo; };
-	
+	void setT(int T) { TIMESTEP = T; }
+	void setTEncodeMethod(int e) { encodeMethod = e; }
+
 	tensor getOutMem() { return mySNNStructure.back().getOutMem(); };
 	tensor getOut() { return mySNNStructure.back().getOut(); };
+	tensor getHiddenOutMem(int i) ;
+	tensor getHiddenOut(int i) ;
 	SNNLayer getSNNLayer(int i) { return mySNNStructure.at(i); };
 
 	void createTrainThread();
@@ -44,6 +51,7 @@ private:
 	float diffLoss;
 	float learnRate;
 	int batchSize;
+	int TIMESTEP;
 	std::vector<float> vloss;
 
 	float weitInitialsd;
@@ -56,4 +64,7 @@ private:
 	std::mutex myMutexC;
 	void updateLossParrallel(tensor bImage, float* vC, int outLen, int realIndex, int b);
 	Optimizer mOptimizer;
+	void saveToFile();
+	int encodeMethod;
+	bool isTrning;
 };

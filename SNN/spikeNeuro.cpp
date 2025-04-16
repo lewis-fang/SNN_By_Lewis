@@ -2,7 +2,7 @@
 
 spikeNeuro::spikeNeuro()
 {
-	beta = 0.999;// quiesce membrain voltage
+	beta = 0.999f;// quiesce membrain voltage
 	Uthr = 1;
 	lastMem = 0;
 
@@ -33,7 +33,7 @@ void spikeNeuro::init(float bt, float Ut, int rM)
 
 float spikeNeuro::reset(float mem)
 {
-	return mem > Uthr ? 1.0 : 0;
+	return mem > Uthr ? 1.0f : 0.0f;
 }
 float spikeNeuro::activate(float xcurrent)
 {
@@ -56,7 +56,7 @@ __m256 spikeNeuro::heaviside(__m256 memSimd)
 }
 float spikeNeuro::heavisideNoSimd(float mem)
 {
-	return mem > Uthr ? 1.0 : 0;
+	return mem > Uthr ? 1.0f : 0.0f;
 }
 __m256 spikeNeuro::resetSimd(__m256 memSimd)
 {

@@ -39,47 +39,21 @@
        <bool>true</bool>
       </property>
       <layout class="QGridLayout" name="gridLayout_3">
-       <item row="1" column="0">
+       <item row="2" column="0">
         <widget class="QLabel" name="label_7">
          <property name="text">
           <string>Train Image number</string>
          </property>
         </widget>
        </item>
-       <item row="2" column="1">
-        <widget class="QLineEdit" name="lineEdit_batchsize">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="text">
-          <string>5</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QLineEdit" name="lineEdit_imagenum">
-         <property name="sizePolicy">
-          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-           <horstretch>0</horstretch>
-           <verstretch>0</verstretch>
-          </sizepolicy>
-         </property>
-         <property name="text">
-          <string>100</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="0">
+       <item row="1" column="0">
         <widget class="QLabel" name="label_6">
          <property name="text">
           <string>Weight Initial sd</string>
          </property>
         </widget>
        </item>
-       <item row="0" column="1">
+       <item row="1" column="1">
         <widget class="QLineEdit" name="lineEdit_sd">
          <property name="sizePolicy">
           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
@@ -92,10 +66,77 @@
          </property>
         </widget>
        </item>
-       <item row="2" column="0">
+       <item row="2" column="1">
+        <widget class="QLineEdit" name="lineEdit_imagenum">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>100</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0">
         <widget class="QLabel" name="label_2">
          <property name="text">
           <string>Batch Size</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLineEdit" name="lineEdit_batchsize">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="text">
+          <string>5</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QComboBox" name="comboBox">
+         <item>
+          <property name="text">
+           <string>Fisrt Fired</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Binary Rate</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Uniform Rate</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Poisson Rate</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Population Rate</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>Diff Fired</string>
+          </property>
+         </item>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_13">
+         <property name="text">
+          <string>Encode method</string>
          </property>
         </widget>
        </item>
@@ -453,8 +494,17 @@
     <property name="title">
      <string>More Config</string>
     </property>
+    <addaction name="actionOptimizer"/>
+   </widget>
+   <widget class="QMenu" name="menuMore_View">
+    <property name="title">
+     <string>More View</string>
+    </property>
+    <addaction name="actionView_Hidden_Spike"/>
+    <addaction name="actionView_Hidden_Weights"/>
    </widget>
    <addaction name="menuMore_Config"/>
+   <addaction name="menuMore_View"/>
   </widget>
   <widget class="QToolBar" name="mainToolBar">
    <attribute name="toolBarArea">
@@ -465,6 +515,21 @@
    </attribute>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
+  <action name="actionView_Hidden_Spike">
+   <property name="text">
+    <string>View Hidden Spike</string>
+   </property>
+  </action>
+  <action name="actionView_Hidden_Weights">
+   <property name="text">
+    <string>View Hidden Weights</string>
+   </property>
+  </action>
+  <action name="actionOptimizer">
+   <property name="text">
+    <string>Optimizer Config</string>
+   </property>
+  </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
  <resources>

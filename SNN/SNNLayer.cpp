@@ -8,6 +8,7 @@ SNNLayer::SNNLayer()
 	actFun = 1;
 	hiddenNumth = -1;
 	isSoftmaxOut = false;
+	TIMESTEP = 25;
 }
 SNNLayer::~SNNLayer()
 {
@@ -117,7 +118,11 @@ void SNNLayer::spikeActivateSimd(int t, int b)
 	for (int i = 0;i < inputXTensor.getDim().dim3;i += offset)
 	{
 		__m256 bzActivateBaseSimdReg = _mm256_load_ps(singleXTensor + i);
-		__m256 xLastMemReg = _mm256_load_ps(LastSingleoutSpike + i);
+		__m256 xLastMemReg = _mm256_setzero_ps();
+		if (t > 0)
+		{
+			xLastMemReg = _mm256_load_ps(LastSingleoutSpike + i);
+		}
 		__m256 afterActivateSimdReg = mySpikeNeuro.activateSimd(xLastMemReg,bzActivateBaseSimdReg);
 		__m256 regSpikeOut = mySpikeNeuro.heaviside(afterActivateSimdReg);
 		_mm256_stream_ps(singleOutTensor + i, afterActivateSimdReg);
@@ -131,7 +136,7 @@ void SNNLayer::softmaxActivate(int t, int b)
 	float* singleOutTensor = outputMemTensor.getDim3Data(b, t);
 	float* singleoutSpike = outSpike.getDim3Data(b, t);
 	float* singleXTensor = inputXTensor.getDim3Data(b, t);
-	float maxValue = -9999999999;
+	float maxValue = -9999999999.0f;
 	for (int i = 0;i < inputXTensor.getDim().dim3;i += 1)
 	{//get max value x
 		if (maxValue < *(singleXTensor + i))
@@ -156,7 +161,7 @@ void SNNLayer::softmaxOut(int t, int b)
 	float* singleOutTensor = outputMemTensor.getDim3Data(b, t);
 	float* singleoutSpike = outSpike.getDim3Data(b, t);
 	//float* singleXTensor = inputXTensor.getDim3Data(b, t);
-	float maxValue = -9999999999;
+	float maxValue = -9999999999.0f;
 	for (int i = 0;i < outputMemTensor.getDim().dim3;i += 1)
 	{//get max value x
 		if (maxValue < *(singleOutTensor + i))
@@ -177,7 +182,7 @@ void SNNLayer::softmaxOut(int t, int b)
 void SNNLayer::softmaxOutV2(int b)
 {
 	//float* singleXTensor = inputXTensor.getDim3Data(b, t);
-	float maxValue = -9999999999;
+	float maxValue = -9999999999.0f;
 	int offset = AlignBytes / sizeof(float);
 	int singleBatichSize = AlignVec(outSpike.getDim().dim3, offset);
 	for (int i = 0;i < outSpike.getDim().dim3;i += 1)
@@ -365,7 +370,7 @@ void SNNLayer::dSSurrogate(tensor dCI, tensor& dCU, int t, int b)
 		__m256 dCUReg = _mm256_load_ps(dCUPointer + i);
 		memReg = _mm256_mul_ps(memReg, _mm256_set1_ps(PI));
 		memReg = _mm256_mul_ps(memReg, memReg);
-		memReg = _mm256_add_ps(memReg, _mm256_set1_ps(1.0));
+		memReg = _mm256_add_ps(memReg, _mm256_set1_ps(1.0f));
 		memReg = _mm256_div_ps(_mm256_set1_ps(1.0/PI), memReg);
 		memReg = _mm256_mul_ps(memReg, dCIReg);
 		dCUReg =_mm256_add_ps(dCUReg, memReg);

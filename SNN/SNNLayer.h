@@ -16,10 +16,11 @@ public:
 	void setSoftmaxOut(bool so) { isSoftmaxOut = so; }
 	void layerCalcSimd(int t, int b);
 	void setIdealOut(float* tsData, int b);
+	void setT(int T) { TIMESTEP = T; }
 	
 	tensor getW() { return W; };
 	tensor getdW() { return dCWTotal; };
-	float* getdB() { return biasSimd.getData(); };
+	float* getB() { return biasSimd.getData(); };
 	float* getddB() { return dBiasSimd.getData(); };
 	tensor getOut() {		return outSpike;	};
 	tensor getOutMem() { return outputMemTensor; };
@@ -63,6 +64,7 @@ private:
 	int hiddenNumth;
 	bool isSoftmaxOut;
 	int actFun;
+	int TIMESTEP;
 	void linearMatMultplySimd(int t, int b);
 	void activateOperateSimd(int t, int b);
 	void spikeActivateSimd(int t, int b);
