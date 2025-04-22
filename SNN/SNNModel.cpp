@@ -90,6 +90,22 @@ bool snnModel::binaryCode(char* imageInput, size_t length, float* spikeInput)
 	}
 	return true;
 }
+
+bool snnModel::aveRateCode(float* imageInput, size_t length, float* spikeInput, float Vthr)
+{
+	for (int i = 0;i < length;i += 1)
+	{
+		int um = 255 / TIMESTEP+ 1;
+		int inverval = (256 - *(imageInput + i)) / um + Vthr;
+		//printf("%d,%d\n", imageInput[i], inverval);
+		for (int t = inverval;t < TIMESTEP;t += inverval)
+		{
+			float* currentStrd = spikeInput + t * length;
+			currentStrd[i] = 1;
+		}
+	}
+	return true;
+}
 void snnModel::buildMyDefaultSNNModel()
 {
 
@@ -97,7 +113,7 @@ void snnModel::buildMyDefaultSNNModel()
 	float mu = 0.0;
 	int act = 1;
 	mySNNStructure.clear();
-	dim iDim1(batchSize, TIMESTEP,MNISTDIM * MNISTDIM);
+	dim iDim1(batchSize, TIMESTEP,MNISTDIM1 * MNISTDIM2);
 	dim oDim1(batchSize,TIMESTEP, LAYER1);
 
 	SNNLayer aSNNLayer1;
@@ -343,41 +359,70 @@ void snnModel::setInput(float* totalImg, float* ideal, int imgNum, int blockLeng
 		idealOut.push_back(out);
 	}
 }
-void snnModel::setBinaryInput(char* totalImg, float* ideal, int imgNum, int blockLength, int outLength)
-{
-	InputImageSeries.clear();
-	idealOut.clear();
-	dim tsdim(1, TIMESTEP, MNISTBLOCK);
-	int offset = AlignBytes / sizeof(float);
-	for (int imagecnt = 0;imagecnt < imgNum;imagecnt++)
-	{
-		char* currentBase = totalImg + imagecnt * MNISTBLOCK;
-		tensor ts;
-		ts.initData(tsdim);
-		float* dt = ts.getData();
-		binaryCode(currentBase, MNISTBLOCK, dt);
-		InputImageSeries.push_back(ts);
-		float* out = (float*)_mm_malloc(sizeof(float) * AlignVec(outLength, offset), AlignBytes);
-		memset(out, 0, sizeof(float) * AlignVec(outLength, offset));
-		int outIndex = ideal[imagecnt];
-		if (outIndex < outLength)
-		{
-			out[outIndex] = 1.0;
-		}
-		else
-		{
-			std::cout << "unexpected out index" << std::endl;
-		}
-		idealOut.push_back(out);
-	}
-}
+//void snnModel::setBinaryInput(char* totalImg, float* ideal, int imgNum, int blockLength, int outLength)
+//{
+//	InputImageSeries.clear();
+//	idealOut.clear();
+//	dim tsdim(1, TIMESTEP, MNISTBLOCK);
+//	int offset = AlignBytes / sizeof(float);
+//	for (int imagecnt = 0;imagecnt < imgNum;imagecnt++)
+//	{
+//		char* currentBase = totalImg + imagecnt * MNISTBLOCK;
+//		tensor ts;
+//		ts.initData(tsdim);
+//		float* dt = ts.getData();
+//		binaryCode(currentBase, MNISTBLOCK, dt);
+//		InputImageSeries.push_back(ts);
+//		float* out = (float*)_mm_malloc(sizeof(float) * AlignVec(outLength, offset), AlignBytes);
+//		memset(out, 0, sizeof(float) * AlignVec(outLength, offset));
+//		int outIndex = ideal[imagecnt];
+//		if (outIndex < outLength)
+//		{
+//			out[outIndex] = 1.0;
+//		}
+//		else
+//		{
+//			std::cout << "unexpected out index" << std::endl;
+//		}
+//		idealOut.push_back(out);
+//	}
+//}
+//void snnModel::setAveRateInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength)
+//{
+//	InputImageSeries.clear();
+//	idealOut.clear();
+//	dim tsdim(1, TIMESTEP, MNISTBLOCK);
+//	int offset = AlignBytes / sizeof(float);
+//	for (int imagecnt = 0;imagecnt < imgNum;imagecnt++)
+//	{
+//		float* currentBase = totalImg + imagecnt * MNISTBLOCK;
+//		tensor ts;
+//		ts.initData(tsdim);
+//		float* dt = ts.getData();
+//		//banaryCode(currentBase, MNISTBLOCK, dt, TIMESTEP);
+//		aveRateCode(currentBase, MNISTBLOCK, dt);
+//		InputImageSeries.push_back(ts);
+//		float* out = (float*)_mm_malloc(sizeof(float) * AlignVec(outLength, offset), AlignBytes);
+//		memset(out, 0, sizeof(float) * AlignVec(outLength, offset));
+//		int outIndex = ideal[imagecnt];
+//		if (outIndex < outLength)
+//		{
+//			out[outIndex] = 1.0;
+//		}
+//		else
+//		{
+//			std::cout << "unexpected out index" << std::endl;
+//		}
+//		idealOut.push_back(out);
+//	}
+//}
 void snnModel::saveToFile()
 {
 	std::ofstream fo("./model.net", std::ios::trunc);
 	fo << "SNN model" << std::endl;
-	fo << "[Uthr]\t" << Uthr << std::endl;
-	fo << "[beta]\t" << beta << std::endl;
-	fo << "[weitInitialsd]\t" << weitInitialsd << std::endl;
+	fo << "[Uthr]" << Uthr << std::endl;
+	fo << "[beta]" << beta << std::endl;
+	fo << "[weitInitialsd]" << weitInitialsd << std::endl;
 	for (int i = 0;i < mySNNStructure.size();i++)
 	{
 		
@@ -386,11 +431,11 @@ void snnModel::saveToFile()
 		float* bData = slayer.getB();
 		for (int j = 0;j < slayer.getOut().getDim().dim3;j++)
 		{
-			fo << "[Layer_" << i << "-out_"<<j << "-weights]\t";
+			fo << "[Layer_" << i << "-out_"<<j << "-weights]";
 			float* wData = W.getDim3Data(0, j);
 			for (int k = 0;k < slayer.getInput().getDim().dim3;k++)
 			{
-				fo << wData[k] << "\t";
+				fo << wData[k] << ",";
 			}
 			fo << std::endl;
 		}
@@ -398,7 +443,7 @@ void snnModel::saveToFile()
 		for (int j = 0;j < slayer.getOut().getDim().dim3;j++)
 		{
 			
-			fo << bData[j] << "\t";
+			fo << bData[j] << ",";
 		}
 		fo << std::endl;
 	}
@@ -449,6 +494,9 @@ bool snnModel::encodeInput(float* imageInput, size_t length, float* spikeInput)
 		_mm_free(charMnistTEST);
 		break;
 	}
+	case 2:
+		aveRateCode(imageInput, MNISTBLOCK, spikeInput, VTHR);
+		break;
 	default:
 		break;
 	}

@@ -9,13 +9,21 @@ SNN::SNN(QWidget *parent)
 	connect(ui.pushButton_calc, SIGNAL(clicked()), this, SLOT(lauchModelCalcSimd()), Qt::AutoConnection);
 //	connect(ui.pushButton_singleNeuro, SIGNAL(clicked()), this, SLOT(checkSingleNeuro()), Qt::AutoConnection);
 	connect(ui.pushButton_train, SIGNAL(clicked()), this, SLOT(train()), Qt::AutoConnection);
+	connect(ui.comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(changeNeuroConfig(int)), Qt::AutoConnection);
 	ui.pushButton_calc->setEnabled(false);
 	ui.pushButton_train->setEnabled(false);
 	mnistTEST=(float*)_mm_malloc(TESTNUM * MNISTBLOCK*sizeof(float), AlignBytes);
 	mnistTESTIndex = (float*)_mm_malloc(TESTNUM  * sizeof(float), AlignBytes);
+	charMnistTEST = (char*)_mm_malloc(TESTNUM * MNISTBLOCK * sizeof(char), AlignBytes);
+	memset(mnistTESTIndex, 0, TESTNUM * sizeof(float));
+	memset(mnistTEST, 0, TESTNUM * MNISTBLOCK * sizeof(float));
+	memset(charMnistTEST, 0, TESTNUM * MNISTBLOCK * sizeof(char));
+	TIMESTEP = 25;
 	loadMnst();
 	initPlotBoard();
-	
+
+	connect(ui.actionView_Hidden_Spike, SIGNAL(triggered()), myView3, SLOT(show()), Qt::AutoConnection);
+
 }
 
 SNN::~SNN()
@@ -29,6 +37,22 @@ void SNN::buildDefaultModel1()
 	mySNNModel.setBatchsize(ui.lineEdit_batchsize->text().toInt());
 	mySNNModel.setWeightSD(ui.lineEdit_sd->text().toFloat());
 
+	mySNNModel.setTEncodeMethod(ui.comboBox->currentIndex());
+	if (ui.comboBox->currentIndex() == 1)
+	{
+		TIMESTEP = 8;
+	}
+	else if(ui.comboBox->currentIndex() == 0)
+	{
+		TIMESTEP = 25;
+	}
+	else if (ui.comboBox->currentIndex() ==2)
+	{
+		TIMESTEP = 64;
+	}
+	ui.lineEdit_T->setText(QString::number(TIMESTEP));
+	mySNNModel.setT(TIMESTEP);
+	
 	mySNNModel.buildMyDefaultSNNModel();
 	ui.pushButton_calc->setEnabled(true);
 	ui.pushButton_train->setEnabled(true);
@@ -48,13 +72,16 @@ void SNN::loadMnst()
 		{
 			qLine = qstream.readLine();
 			QStringList qstrlist = qLine.split(',', QString::SkipEmptyParts);
-			if (qstrlist.size() == MNISTDIM * MNISTDIM + 1)
+			if (qstrlist.size() == MNISTDIM1 * MNISTDIM2 + 1)
 			{
 				float* currentBase = mnistTEST + imagecnt * MNISTBLOCK;
+				char* currentCharBase = charMnistTEST + imagecnt * MNISTBLOCK;
+
 				mnistTESTIndex[imagecnt] = qstrlist.at(0).toFloat();
-				for (int i = 1;i < MNISTDIM * MNISTDIM + 1;i++)
+				for (int i = 1;i < MNISTDIM1 * MNISTDIM2 + 1;i++)
 				{
 					currentBase[i - 1] = qstrlist.at(i).toFloat();
+					currentCharBase[i - 1] = qstrlist.at(i).toUShort();
 				}
 				imagecnt++;
 			}
@@ -84,33 +111,33 @@ void SNN::lauchModelCalcSimd()
 	tensor ts;
 	ts.initData(tsdim);
 	float* dt = ts.getData();
-	snnModel::latency(currentBase, MNISTBLOCK, dt, TIMESTEP, TAO, 5);
+	mySNNModel.encodeInput(currentBase, MNISTBLOCK, dt);
 	printf("latency successfully\n");
-	for (int i = 0;i < MNISTBLOCK;i++)
-	{
-		for (int t = 0;t < TIMESTEP;t++)
-		{
-			unsigned int spkie = *(dt + t * MNISTBLOCK + i);
-			printf("%c,", spkie * '-');
-		}
-		printf("\n");
-	}
+	//for (int i = 0;i < MNISTBLOCK;i++)
+	//{
+	//	for (int t = 0;t < TIMESTEP;t++)
+	//	{
+	//		unsigned int spkie = *(dt + t * MNISTBLOCK + i);
+	//		printf("%c,", spkie * '-');
+	//	}
+	//	printf("\n");
+	//}
 	originalImage.clear();
 	SpikeImage.clear();
 	
-	for (int i = 0;i < MNISTDIM;i++)
+	for (int i = 0;i < MNISTDIM1;i++)
 	{
-		for (int j = 0;j < MNISTDIM;j++)
+		for (int j = 0;j < MNISTDIM2;j++)
 		{
-			float oi = *(currentBase + i * MNISTDIM + j);
+			float oi = *(currentBase + i * MNISTDIM2 + j);
 			if (oi > 20)
 			{
-				QScatterDataItem dit1 = QScatterDataItem(QVector3D(j, i, 0));
+				QScatterDataItem dit1 = QScatterDataItem(QVector3D(j, i, -1));
 				originalImage.push_back(dit1);
 			}
 			for (int t = 0;t < TIMESTEP;t++)
 			{
-				unsigned int spkie = *(dt + t * MNISTBLOCK + i* MNISTDIM+j);
+				unsigned int spkie = *(dt + t * MNISTBLOCK + i* MNISTDIM2+j);
 				if (spkie == 1)
 				{
 					QScatterDataItem dit2 = QScatterDataItem(QVector3D(j, i, t));
@@ -159,10 +186,10 @@ void SNN::lauchModelCalcSimd()
 	}
 	printf("\n");
 
-	for (int i = 1;i < MNISTDIM * MNISTDIM + 1;i++)
+	for (int i = 1;i < MNISTDIM1 * MNISTDIM2 + 1;i++)
 	{
 		int a = int(currentBase[i - 1]) / 128;
-		printf("%c%c", '+' * a + ' ' * (1 - a), '\n' * (i % MNISTDIM == 0));
+		printf("%c%c", '+' * a + ' ' * (1 - a), '\n' * (i % MNISTDIM2== 0));
 	}
 	SpikeOut.clear();
 	int outLength = AlignVec(mySNNModel.getOut().getDim().dim3, AlignBytes / sizeof(float));
@@ -182,31 +209,7 @@ void SNN::lauchModelCalcSimd()
 	plotOutSpike(maxIndex);
 	printf("----------------------\nI guess the number: %d, with Confidence: %f\n-------------------------------\n", maxIndex, maxclass);
 }
-void SNN::checkSingleNeuro()
-{
-	float mem[TIMESTEP];
-	float spike[TIMESTEP];
-	SNNLayer aSNNlayer;
-	float input[TIMESTEP];
-	memset(input, 0, sizeof(float) * TIMESTEP);
-	for (int i = 1;i < TIMESTEP;i++)
-	{
-		input[i] =0.21;
-	}
-	aSNNlayer.checkSingleNeuro(input,mem, spike);
 
-	memSeries->clear();
-	memSeries->setColor(Qt::black);
-
-	for (int i = 0;i < TIMESTEP;i++)
-	{
-		memSeries->append( QPointF(i, mem[i]));
-		printf("%d\t%f\t%f\t%f\n", i, input[i], mem[i], spike[i]);
-	}
-
-	myView2->chart()->legend()->setVisible(false);
-	myView2->chart()->createDefaultAxes();
-}
 void SNN::train()
 {
 	int imageNumber = ui.lineEdit_imagenum->text().toInt();
@@ -230,38 +233,14 @@ void SNN::plot3D()
 	{
 		scatterSeries1->dataProxy()->addItem(originalImage.at(i));
 	}
-	scatterSeries1->setItemSize(0.1);
-	scatterSeries1->setBaseColor(Qt::red);
+
 	
 	for (int i = 0; i < SpikeImage.size(); ++i)
 	{
 		scatterSeries2->dataProxy()->addItem(SpikeImage.at(i));
 	}
 
-	scatterSeries2->setItemSize(0.1);
-	scatterSeries2->setBaseColor(Qt::gray);
 
-	QValue3DAxis* scatterAxisX = new QValue3DAxis();
-	scatterAxisX->setTitle("X");
-	scatterAxisX->setRange(0, 30);
-	scatterAxisX->setTitleVisible(true);
-	scatter->setAxisX(scatterAxisX);
-
-	QValue3DAxis* scatterAxisY = new QValue3DAxis();
-	scatterAxisY->setTitle("Y");
-	scatterAxisY->setRange(0, 30);
-	scatterAxisY->setTitleVisible(true);
-	scatterAxisY->setReversed(true);
-	scatter->setAxisY(scatterAxisY);
-
-	QValue3DAxis* scatterAxisZ = new QValue3DAxis();
-	scatterAxisZ->setTitle("T");
-	scatterAxisZ->setRange(0, 28);
-	scatterAxisZ->setTitleVisible(true);
-	scatter->setAxisZ(scatterAxisZ);
-	scatter->setOrthoProjection(true);
-	scatter->setHorizontalAspectRatio(0.5);
-	scatter->setAspectRatio(2);
 	
 }
 void SNN::plotOutSpike(int number)
@@ -280,7 +259,8 @@ void SNN::plotOutSpike(int number)
 		if (maxm < mem[i * outLength + number]) maxm = mem[i * outLength + number];
 		if (minm > mem[i * outLength + number]) minm = mem[i * outLength + number];
 	}
-	
+	myView2->chart()->axisY()->setMax(maxm);
+	myView2->chart()->axisY()->setMin(minm);
 	for (int c = 0;c < OUTCLASS;c++)
 	{
 		for (int t = 0;t < TIMESTEP;t++)
@@ -292,8 +272,20 @@ void SNN::plotOutSpike(int number)
 
 		}
 	}
-	myView2->chart()->axisY()->setMax(maxm);
-	myView2->chart()->axisY()->setMin(minm);
+
+	float* hiddenSpike = mySNNModel.getHiddenOut(0).getData();
+	int outHiddenLength = AlignVec(mySNNModel.getHiddenOut(0).getDim().dim3, AlignBytes / sizeof(float));
+	hiddenSpikeScatters->clear();
+	for (int c = 0;c < mySNNModel.getHiddenOut(0).getDim().dim3;c++)
+	{
+		for (int t = 0;t < TIMESTEP;t++)
+		{
+			if ((int)hiddenSpike[t * outHiddenLength + c] == 1)
+			{
+				hiddenSpikeScatters->append(QPointF(t, c));
+			}
+		}
+	}
 }
 
 void SNN::initPlotBoard()
@@ -305,6 +297,33 @@ void SNN::initPlotBoard()
 	scatterSeries2 = new QScatter3DSeries();
 	scatter->addSeries(scatterSeries1);
 	scatter->addSeries(scatterSeries2);
+
+	scatterSeries1->setItemSize(0.1f);
+	scatterSeries1->setBaseColor(Qt::red);
+	scatterSeries2->setItemSize(0.1f);
+	scatterSeries2->setBaseColor(Qt::gray);
+
+	QValue3DAxis* scatterAxisX = new QValue3DAxis();
+	scatterAxisX->setTitle("X");
+	scatterAxisX->setRange(0, 30);
+	scatterAxisX->setTitleVisible(true);
+	scatter->setAxisX(scatterAxisX);
+
+	QValue3DAxis* scatterAxisY = new QValue3DAxis();
+	scatterAxisY->setTitle("Y");
+	scatterAxisY->setRange(0, 30);
+	scatterAxisY->setTitleVisible(true);
+	scatterAxisY->setReversed(true);
+	scatter->setAxisY(scatterAxisY);
+
+	QValue3DAxis* scatterAxisZ = new QValue3DAxis();
+	scatterAxisZ->setTitle("T");
+	scatterAxisZ->setRange(-2, TIMESTEP+1);
+	scatterAxisZ->setTitleVisible(true);
+	scatter->setAxisZ(scatterAxisZ);
+	scatter->setOrthoProjection(true);
+	scatter->setHorizontalAspectRatio(0.5);
+	scatter->setAspectRatio(2);
 
 	myView2 = new QChartView;
 	myView4 = new QChartView;
@@ -343,8 +362,64 @@ void SNN::initPlotBoard()
 	myView4->chart()->addAxis(axisY2, Qt::AlignRight);
 	outSpikeScatters->attachAxis(axisY1);
 
-	myView2->chart()->createDefaultAxes();
-
 	myView2->chart()->axisX()->setMax(TIMESTEP + 1);
 	myView4->chart()->axisX()->setMax(TIMESTEP + 1);
+	myView2->chart()->axisX()->setMin(-1);
+	myView4->chart()->axisX()->setMin(-1);
+
+	myView3 = new QChartView;//hidden spike
+	hiddenSpikeScatters = new QScatterSeries;
+	hiddenSpikeScatters->setUseOpenGL();
+	hiddenSpikeScatters->setMarkerSize(5.0);
+	hiddenSpikeScatters->setColor(Qt::black);
+	myView3->chart()->addSeries(hiddenSpikeScatters);
+	myView3->chart()->setTitle("Hidden Spike Pattern");
+
+	myView3->chart()->legend()->setVisible(false);
+	myView3->chart()->createDefaultAxes();
+
+	QValueAxis* axisY3 = new QValueAxis;
+	axisY3->setMin(-1);
+	axisY3->setMax(LAYER1);
+	axisY3->setTickCount(12);
+	axisY3->setLabelFormat("%d");
+	QValueAxis* axisY4 = new QValueAxis;
+	axisY4->setMin(-1);
+	axisY4->setMax(LAYER1);
+	axisY4->setTickCount(12);
+	axisY4->setLabelFormat("%d");
+	myView3->chart()->removeAxis(myView3->chart()->axisY());
+	myView3->chart()->addAxis(axisY3, Qt::AlignLeft);
+	myView3->chart()->addAxis(axisY4, Qt::AlignRight);
+	hiddenSpikeScatters->attachAxis(axisY3);
+	myView3->chart()->axisX()->setMax(TIMESTEP + 1);
+	myView3->chart()->axisX()->setMin(-1);
+	myView3->setWindowFlags(Qt::WindowStaysOnTopHint);
+	myView3->setMinimumSize(QSize(800  , 400));
+	//myView3->showMaximized();
+}
+void SNN::showHiddenSpikeOut()
+{
+
+}
+
+void SNN::changeNeuroConfig(int)
+{
+	if (ui.comboBox->currentIndex() == 1)
+	{
+		TIMESTEP = 8;
+	}
+	else if (ui.comboBox->currentIndex() == 0)
+	{
+		TIMESTEP = 25;
+	}
+	else if (ui.comboBox->currentIndex() == 2)
+	{
+		TIMESTEP = 64;
+	}
+	ui.lineEdit_T->setText(QString::number(TIMESTEP));
+	myView2->chart()->axisX()->setMax(TIMESTEP + 1);
+	myView3->chart()->axisX()->setMax(TIMESTEP + 1);
+	myView4->chart()->axisX()->setMax(TIMESTEP + 1);
+	scatter->axisZ()->setMax(TIMESTEP + 1);
 }

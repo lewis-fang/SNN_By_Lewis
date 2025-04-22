@@ -32,6 +32,7 @@ private:
     Ui::SNNClass ui;
 
     float* mnistTEST;
+    char* charMnistTEST;
     float* mnistTESTIndex;
 
     std::vector<tensor> vMnistTEST;
@@ -50,17 +51,22 @@ private:
     QScatter3DSeries* scatterSeries2;
 
     QChartView* myView2 ;
+    QChartView* myView3;
     QChartView* myView4;
 
     QLineSeries* memSeries ;
     QScatterSeries* outSpikeScatters;
-   
+    QScatterSeries* hiddenSpikeScatters;
+
+    int TIMESTEP;
     void initPlotBoard();
+
 public slots:
     void loadMnst();
     void buildDefaultModel1();
     void lauchModelCalcSimd();
-    void checkSingleNeuro();
     void train();
     void plot3D();
+    void showHiddenSpikeOut();
+    void changeNeuroConfig(int);
 };

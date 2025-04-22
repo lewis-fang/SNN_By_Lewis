@@ -39,11 +39,10 @@ bool SNNLayer::initSnnLayer(dim inputDim,dim outDim, float beta, float Uthr, int
 		outSpike.initData(outDim);
 		std::cout << "	outSpike initiated" << std::endl;
 		idealOutSpike.initData(outDim);
-		dim dimW(1,outDim.dim3, inputDim.dim3);
-		dim dimB(1,1, outDim.dim3);
+		dim dimW(1, inputDim.dim3, outDim.dim3);		dim dimB(1,1, outDim.dim3);
 		W.initData(dimW);
 		W.randInit(sd, mu);
-		dim dimWT(1, inputDim.dim3, outDim.dim3);
+		dim dimWT(1, outDim.dim3, inputDim.dim3);
 		WT.initData(dimWT);
 		biasSimd.initData(dimB);
 
@@ -51,7 +50,7 @@ bool SNNLayer::initSnnLayer(dim inputDim,dim outDim, float beta, float Uthr, int
 		TransMatrix();
 		//--------------------------------------------------------------------------------for traing collection
 		int dWDim1 = std::max(batchSize, 3);
-		dim ddimW(dWDim1, outDim.dim3, inputDim.dim3);
+		dim ddimW(dWDim1, inputDim.dim3, outDim.dim3);
 		dim ddimB(dWDim1, 1,outDim.dim3);
 		dCWTotal.initData(ddimW);
 		dBiasSimd.initData(ddimB);
@@ -73,7 +72,8 @@ bool SNNLayer::initSnnLayer(dim inputDim,dim outDim, float beta, float Uthr, int
 
 		dCU.initData(outDim);
 		std::cout << "	dCU initiated" << std::endl;
-		dCX.initData(outDim);
+		//dCX.initData(outDim);
+		memcpy(&dCX, &dCU, sizeof(dCU));
 		std::cout << "	dCX initiated" << std::endl;
 		dCI.initData(outDim);
 	return ret;
@@ -84,19 +84,20 @@ void SNNLayer::linearMatMultplySimd(int t, int b)
 	float* singleinputSpike = inputSpike.getDim3Data(b, t);
 	float* singleXTensor = inputXTensor.getDim3Data(b, t);
 	int offset = AlignBytes / sizeof(float);
-	for (int j = 0;j < inputXTensor.getDim().dim3;j++)
-	{ 
-		float* currentWTensor = W.getDim3Data(0,j);
-		__m256 sumReg = _mm256_set1_ps(biasSimd.getData()[j]);
-		for (int i = 0;i < inputSpike.getDim().dim3;i+=offset)
-		{		
-			__m256 inputReg = _mm256_load_ps(singleinputSpike+i);
-			__m256 wReg = _mm256_load_ps(currentWTensor + i);
-			sumReg = _mm256_fmadd_ps(inputReg, wReg, sumReg);
+	memcpy(singleXTensor, biasSimd.getData(), sizeof(float) * inputXTensor.getDim().dim3);
+	for (int i = 0;i < inputSpike.getDim().dim3;i += 1)
+	{
+		if (singleinputSpike[i] > 0.5)
+		{
+			float* currentWTensor = W.getDim3Data(0, i);
+			for (int j = 0;j < inputXTensor.getDim().dim3;j += offset)
+			{
+				__m256 sumReg = _mm256_load_ps(singleXTensor + j);
+				__m256 wReg = _mm256_load_ps(currentWTensor + j);
+				sumReg = _mm256_add_ps(sumReg, wReg);
+				_mm256_stream_ps(singleXTensor + j, sumReg);
+			}
 		}
-		sumReg = _mm256_hadd_ps(sumReg, sumReg);
-		sumReg = _mm256_hadd_ps(sumReg, sumReg);
-		singleXTensor[j] = sumReg.m256_f32[0] + sumReg.m256_f32[4];
 	}
 }
 void SNNLayer::spikeActivateSimd(int t, int b)
@@ -319,16 +320,18 @@ void SNNLayer::dXdW(tensor dCX, tensor& dCW, int t, int b)
 		_mm256_stream_ps(curdBias + i, dbReg);
 	}
 	float* singleinputSpike = inputSpike.getDim3Data(b, t);
-	for (int j = 0;j < dCX.getDim().dim3;j++)
+	for (int i = 0;i < inputSpike.getDim().dim3;i += 1)
 	{
-		float* currentWTensor = dCW.getDim3Data(b,j);
-		__m256 dydxReg = _mm256_set1_ps(curDydx[j]);
-		for (int i = 0;i < inputSpike.getDim().dim3;i += offset)
+		if (singleinputSpike[i] > 0.5)
 		{
-			__m256 inputReg = _mm256_load_ps(singleinputSpike + i);
-			__m256 dWReg = _mm256_load_ps(currentWTensor + i);
-			dWReg =_mm256_fmadd_ps(inputReg, dydxReg, dWReg);
-			_mm256_stream_ps(currentWTensor + i, dWReg);
+			float* currentWTensor = dCW.getDim3Data(b, i);
+			for (int j = 0;j < dCX.getDim().dim3;j += offset)
+			{
+				__m256 dydxReg = _mm256_load_ps(curDydx + j);
+				__m256 dWReg = _mm256_load_ps(currentWTensor + j);
+				dWReg = _mm256_add_ps(dydxReg, dWReg);
+				_mm256_stream_ps(currentWTensor + j, dWReg);
+			}
 		}
 	}
 }
@@ -393,7 +396,7 @@ void SNNLayer::dSoftmax( int t, int b)
 }
 void SNNLayer::dUdX(tensor dCU, tensor& dCX, int t, int b)
 {
-	dCX.copyTensor(dCU, t, b);
+	//dCX.copyTensor(dCU, t, b);
 }
 void SNNLayer::dXdI(tensor dCX, tensor& lastdCI, int t, int b)
 {
@@ -402,7 +405,8 @@ void SNNLayer::dXdI(tensor dCX, tensor& lastdCI, int t, int b)
 	int offset = AlignBytes / sizeof(float);
 	for (int j = 0;j < lastdCI.getDim().dim3;j++)
 	{
-		float* currentWTensor = WT.getDim3Data(0, j);
+		//float* currentWTensor = WT.getDim3Data(0, j);
+		float* currentWTensor = W.getDim3Data(0, j);
 		__m256 sumReg = _mm256_setzero_ps();
 		for (int i = 0;i < dCX.getDim().dim3;i += offset)//out length
 		{
@@ -497,7 +501,7 @@ void SNNLayer::accumulateW(float lr, int batchSize)
 
 	memset(dBiasSimd.getData(), 0, sizeof(float) * singleBlockSizeBias * batchSize);
 
-	TransMatrix();
+	//TransMatrix();
 }
 void SNNLayer::UpdateLayerWBADAMW(float learnrate, Optimizer mOpti,int batchSize, int t)
 {
@@ -505,7 +509,7 @@ void SNNLayer::UpdateLayerWBADAMW(float learnrate, Optimizer mOpti,int batchSize
 	ADAMW(learnrate, mOpti, W, dCWTotal, shadowM, shadowV, t);
 	ADAMW(learnrate, mOpti, biasSimd, dBiasSimd, shadowBM, shadowBV, t);
 	memset(dBiasSimd.getData(), 0, sizeof(float) * dBiasSimd.getBlockSize());
-	TransMatrix();
+//	TransMatrix();
 }
 void SNNLayer::ADAMW(float learnrate, Optimizer mOpti, tensor w,tensor g, tensor moment, tensor velocity, int t)
 {

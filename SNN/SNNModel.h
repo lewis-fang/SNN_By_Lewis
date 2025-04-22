@@ -14,11 +14,13 @@ public:
 	bool encodeInput(float* imageInput, size_t length, float* spikeInput);
 	bool latency(float* imageInput, size_t length, float* spikeInput, float tao, float Vthr);
 	bool binaryCode(char* imageInput, size_t length, float* spikeInput);
+	bool aveRateCode(float* imageInput, size_t length, float* spikeInput, float Vthr);
 	void buildMyDefaultSNNModel();
 
 	void fowardRecurrentSpikingSimd(tensor ts,int b);
 	void setInput(float* totalImg, float* ideal, int imgNum,int blockLength,int outLength);
-	void setBinaryInput(char* totalImg, float* ideal, int imgNum, int blockLength, int outLength);
+	//void setBinaryInput(char* totalImg, float* ideal, int imgNum, int blockLength, int outLength);
+	//void setAveRateInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength);
 	void setBatchsize(int bxs) { batchSize = bxs; };
 	void setLearnRate(float lr) { learnRate = lr; };
 	void setMinLoss(float ml) { minLoss = ml; };
