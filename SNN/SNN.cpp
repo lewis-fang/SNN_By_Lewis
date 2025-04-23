@@ -1,23 +1,15 @@
 #include "SNN.h"
-
-
 SNN::SNN(QWidget *parent)
     : QMainWindow(parent)
 {
     ui.setupUi(this);
 	connect(ui.pushButton_buildamodel, SIGNAL(clicked()), this, SLOT(buildDefaultModel1()), Qt::AutoConnection);
 	connect(ui.pushButton_calc, SIGNAL(clicked()), this, SLOT(lauchModelCalcSimd()), Qt::AutoConnection);
-//	connect(ui.pushButton_singleNeuro, SIGNAL(clicked()), this, SLOT(checkSingleNeuro()), Qt::AutoConnection);
 	connect(ui.pushButton_train, SIGNAL(clicked()), this, SLOT(train()), Qt::AutoConnection);
 	connect(ui.comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(changeNeuroConfig(int)), Qt::AutoConnection);
 	ui.pushButton_calc->setEnabled(false);
 	ui.pushButton_train->setEnabled(false);
-	mnistTEST=(float*)_mm_malloc(TESTNUM * MNISTBLOCK*sizeof(float), AlignBytes);
-	mnistTESTIndex = (float*)_mm_malloc(TESTNUM  * sizeof(float), AlignBytes);
-	charMnistTEST = (char*)_mm_malloc(TESTNUM * MNISTBLOCK * sizeof(char), AlignBytes);
-	memset(mnistTESTIndex, 0, TESTNUM * sizeof(float));
-	memset(mnistTEST, 0, TESTNUM * MNISTBLOCK * sizeof(float));
-	memset(charMnistTEST, 0, TESTNUM * MNISTBLOCK * sizeof(char));
+
 	TIMESTEP = 25;
 	loadMnst();
 	initPlotBoard();
@@ -37,7 +29,7 @@ void SNN::buildDefaultModel1()
 	mySNNModel.setBatchsize(ui.lineEdit_batchsize->text().toInt());
 	mySNNModel.setWeightSD(ui.lineEdit_sd->text().toFloat());
 
-	mySNNModel.setTEncodeMethod(ui.comboBox->currentIndex());
+	
 	if (ui.comboBox->currentIndex() == 1)
 	{
 		TIMESTEP = 8;
@@ -50,6 +42,7 @@ void SNN::buildDefaultModel1()
 	{
 		TIMESTEP = 64;
 	}
+	mySNNModel.setTEncodeMethod(ui.comboBox->currentIndex(), TIMESTEP);
 	ui.lineEdit_T->setText(QString::number(TIMESTEP));
 	mySNNModel.setT(TIMESTEP);
 	
@@ -59,69 +52,22 @@ void SNN::buildDefaultModel1()
 }
 void SNN::loadMnst()
 {
-    QString fileName = QFileDialog::getOpenFileName(this, tr("import mnist train"), "", tr("CSV(*.csv)")); //Ñ¡ÔñÂ·¾¶
-	std::cout << fileName.toLocal8Bit().data() << std::endl;
-	QFile Wts(fileName);
-	bool GoodLine = true;
-	int imagecnt = 0;
-	if (Wts.open(QIODevice::ReadOnly | QIODevice::Text))
-	{
-		QString qLine;
-		QTextStream qstream(&Wts);
-		while (!qstream.atEnd() && GoodLine)
-		{
-			qLine = qstream.readLine();
-			QStringList qstrlist = qLine.split(',', QString::SkipEmptyParts);
-			if (qstrlist.size() == MNISTDIM1 * MNISTDIM2 + 1)
-			{
-				float* currentBase = mnistTEST + imagecnt * MNISTBLOCK;
-				char* currentCharBase = charMnistTEST + imagecnt * MNISTBLOCK;
+	int imagecnt= myMNIST.loadMnst();
 
-				mnistTESTIndex[imagecnt] = qstrlist.at(0).toFloat();
-				for (int i = 1;i < MNISTDIM1 * MNISTDIM2 + 1;i++)
-				{
-					currentBase[i - 1] = qstrlist.at(i).toFloat();
-					currentCharBase[i - 1] = qstrlist.at(i).toUShort();
-				}
-				imagecnt++;
-			}
-			else
-			{
-				GoodLine = false;
-				break;
-			}
-			if (imagecnt == TESTNUM)
-			{
-				break;
-			}
-		}
-		if (GoodLine)
-		{
-			std::cout << "MNST images are imported successfully!-->"<< imagecnt << std::endl;
-			ui.spinBox_CALCIMAGE->setMaximum(imagecnt - 1);
-		}
-	}
+	ui.spinBox_CALCIMAGE->setMaximum(imagecnt - 1);
 }
 
 void SNN::lauchModelCalcSimd()
 {
 	int imagecnt = ui.spinBox_CALCIMAGE->value();
-	float* currentBase = mnistTEST + imagecnt * MNISTBLOCK;
+	float* currentBase = myMNIST.getImage() + imagecnt * MNISTBLOCK;
 	dim tsdim(1,TIMESTEP, MNISTBLOCK);
 	tensor ts;
 	ts.initData(tsdim);
 	float* dt = ts.getData();
 	mySNNModel.encodeInput(currentBase, MNISTBLOCK, dt);
 	printf("latency successfully\n");
-	//for (int i = 0;i < MNISTBLOCK;i++)
-	//{
-	//	for (int t = 0;t < TIMESTEP;t++)
-	//	{
-	//		unsigned int spkie = *(dt + t * MNISTBLOCK + i);
-	//		printf("%c,", spkie * '-');
-	//	}
-	//	printf("\n");
-	//}
+
 	originalImage.clear();
 	SpikeImage.clear();
 	
@@ -219,7 +165,7 @@ void SNN::train()
 	mySNNModel.setDiffMinLoss(ui.lineEdit_difflosswindow->text().toFloat());
 	mySNNModel.setMaxEpoch(ui.lineEdit_maxepoch->text().toInt());
 
-	mySNNModel.setInput(mnistTEST,mnistTESTIndex, imageNumber, MNISTBLOCK,OUTCLASS);
+	mySNNModel.setInput(myMNIST.getImage(), myMNIST.getImageIndexVector(), imageNumber, MNISTBLOCK,OUTCLASS);
 	mySNNModel.createTrainThread();
 
 }

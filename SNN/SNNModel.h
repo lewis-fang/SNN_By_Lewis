@@ -3,7 +3,7 @@
 #include"SNNLayer.h"
 #include <string.h> 
 #include<QtCharts/qchartview.h>
-
+#include"enCoder.h"
 class snnModel
 {
 public:
@@ -12,15 +12,12 @@ public:
 
 public:
 	bool encodeInput(float* imageInput, size_t length, float* spikeInput);
-	bool latency(float* imageInput, size_t length, float* spikeInput, float tao, float Vthr);
-	bool binaryCode(char* imageInput, size_t length, float* spikeInput);
-	bool aveRateCode(float* imageInput, size_t length, float* spikeInput, float Vthr);
+
 	void buildMyDefaultSNNModel();
 
 	void fowardRecurrentSpikingSimd(tensor ts,int b);
 	void setInput(float* totalImg, float* ideal, int imgNum,int blockLength,int outLength);
-	//void setBinaryInput(char* totalImg, float* ideal, int imgNum, int blockLength, int outLength);
-	//void setAveRateInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength);
+
 	void setBatchsize(int bxs) { batchSize = bxs; };
 	void setLearnRate(float lr) { learnRate = lr; };
 	void setMinLoss(float ml) { minLoss = ml; };
@@ -31,7 +28,7 @@ public:
 	void setReset(int rst) { reset = rst; };
 	void setMaxEpoch(int maxepo) { maxEpoch = maxepo; };
 	void setT(int T) { TIMESTEP = T; }
-	void setTEncodeMethod(int e) { encodeMethod = e; }
+	void setTEncodeMethod(int e,int T) { myEnCoder.setEncoer(e,T); }
 
 	tensor getOutMem() { return mySNNStructure.back().getOutMem(); };
 	tensor getOut() { return mySNNStructure.back().getOut(); };
@@ -69,4 +66,6 @@ private:
 	void saveToFile();
 	int encodeMethod;
 	bool isTrning;
+
+	enCoder myEnCoder;
 };
