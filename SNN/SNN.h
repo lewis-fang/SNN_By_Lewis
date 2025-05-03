@@ -3,6 +3,7 @@
 #include"dataDefine.h"
 #include <QtWidgets/QMainWindow>
 #include "ui_SNN.h"
+#include "ui_uTrainConfig.h"
 #include<iostream>
 #include<immintrin.h>
 #include"SNNModel.h"
@@ -14,10 +15,11 @@
 #include<QFileDialog>
 #include<QTextStream>
 #include"loadMNIST.h"
+#include"loadBioData1.h"
 #include <QtDataVisualization/Q3DScatter>
 #include <QtDataVisualization/QScatter3DSeries>
 #include <QtDataVisualization/QValue3DAxis>
-
+#include"modelConfig.h"
 QT_CHARTS_USE_NAMESPACE
 using namespace QtDataVisualization;
 class SNN : public QMainWindow
@@ -25,13 +27,15 @@ class SNN : public QMainWindow
     Q_OBJECT
 
 public:
-    SNN(QWidget *parent = nullptr);
+    SNN(QWidget* parent = nullptr);
     ~SNN();
 
 private:
     Ui::SNNClass ui;
+
     snnModel mySNNModel;
     MNISTLoader myMNIST;
+    BioDataLoader myBioDataLoader;
 
     inline  float randomFloat(float min, float max) {
         return min + static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / (max - min)));
@@ -41,21 +45,22 @@ private:
     std::vector<QScatterDataItem> SpikeOut;
     void plotOutSpike(int number);
     Q3DScatter* scatter;
-    QWidget* scatterContainer ;
+    QWidget* scatterContainer;
     QScatter3DSeries* scatterSeries1;
     QScatter3DSeries* scatterSeries2;
 
-    QChartView* myView2 ;
+    QChartView* myView2;
     QChartView* myView3;
     QChartView* myView4;
 
-    QLineSeries* memSeries ;
+    QLineSeries* memSeries;
     QScatterSeries* outSpikeScatters;
     QScatterSeries* hiddenSpikeScatters;
 
     int TIMESTEP;
     void initPlotBoard();
-
+    ModelConfig myModelConfig;
+    int usedDataSet;
 public slots:
     void loadMnst();
     void buildDefaultModel1();
@@ -63,5 +68,20 @@ public slots:
     void train();
     void plot3D();
     void showHiddenSpikeOut();
-    void changeNeuroConfig(int);
+    void changeNeuroConfig(int i = -1);
+
+    void updatePlotView();
+private:
+   
+    class TrainConfig :public QWidget
+    {
+    public:
+        Ui::uTrain uiTrainConfig;
+        TrainConfig()
+        {
+            uiTrainConfig.setupUi(this);
+            setWindowFlags(Qt::WindowStaysOnTopHint);
+        }
+    } myTrainConfig;
+ 
 };

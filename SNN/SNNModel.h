@@ -11,12 +11,12 @@ public:
 	~snnModel() {};
 
 public:
-	bool encodeInput(float* imageInput, size_t length, float* spikeInput);
+	bool encodeInput(float* imageInput, size_t length, float* spikeInput, float maxValue);
 
-	void buildMyDefaultSNNModel();
+	void buildMyDefaultSNNModel(int LAYER1,int MNISTDIM1,int MNISTDIM2, int OUTCLASS);
 
 	void fowardRecurrentSpikingSimd(tensor ts,int b);
-	void setInput(float* totalImg, float* ideal, int imgNum,int blockLength,int outLength);
+	void setInput(float* totalImg, float* ideal, int imgNum,int blockLength,int outLength, int MNISTBLOCK, float maxValue);
 
 	void setBatchsize(int bxs) { batchSize = bxs; };
 	void setLearnRate(float lr) { learnRate = lr; };
@@ -35,7 +35,7 @@ public:
 	tensor getHiddenOutMem(int i) ;
 	tensor getHiddenOut(int i) ;
 	SNNLayer getSNNLayer(int i) { return mySNNStructure.at(i); };
-
+	bool getModelBuilt() { return modelBuilt; }
 	void createTrainThread();
 private:
 	std::vector<SNNLayer> mySNNStructure;
@@ -44,6 +44,7 @@ private:
 	float calculateC(float* actualy, float* idealx, int sz);
 	template< typename  T>
 	void dcalculateC(T* idealx, T* actualy, T* dyVdx, int sz);
+	bool modelBuilt;
 	int lossType;
 	int maxEpoch;
 	float minLoss;
@@ -57,7 +58,7 @@ private:
 	float beta;
 	float Uthr;
 	int reset;
-	void train();
+	void BPTT();
 	volatile int parrellelIBatchTrainDone;
 	std::condition_variable condC;
 	std::mutex myMutexC;

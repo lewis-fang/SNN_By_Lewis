@@ -3,10 +3,14 @@ SNN::SNN(QWidget *parent)
     : QMainWindow(parent)
 {
     ui.setupUi(this);
+	usedDataSet = -1;
 	connect(ui.pushButton_buildamodel, SIGNAL(clicked()), this, SLOT(buildDefaultModel1()), Qt::AutoConnection);
 	connect(ui.pushButton_calc, SIGNAL(clicked()), this, SLOT(lauchModelCalcSimd()), Qt::AutoConnection);
 	connect(ui.pushButton_train, SIGNAL(clicked()), this, SLOT(train()), Qt::AutoConnection);
 	connect(ui.comboBox, SIGNAL(currentIndexChanged(int)), this, SLOT(changeNeuroConfig(int)), Qt::AutoConnection);
+	connect(myModelConfig.uiModelConfig.spinBox_Layer0NeuronNumber, SIGNAL(editingFinished()), this, SLOT(changeNeuroConfig()), Qt::AutoConnection);
+	connect(ui.pushButton_loadDataset, SIGNAL(clicked()), this, SLOT(loadMnst()), Qt::AutoConnection);
+
 	ui.pushButton_calc->setEnabled(false);
 	ui.pushButton_train->setEnabled(false);
 
@@ -15,7 +19,8 @@ SNN::SNN(QWidget *parent)
 	initPlotBoard();
 
 	connect(ui.actionView_Hidden_Spike, SIGNAL(triggered()), myView3, SLOT(show()), Qt::AutoConnection);
-
+	connect(ui.actionModel_More_Config, SIGNAL(triggered()), &myModelConfig, SLOT(show()), Qt::AutoConnection);
+	connect(ui.actionOptimizer, SIGNAL(triggered()),&myTrainConfig, SLOT(show()), Qt::AutoConnection);
 }
 
 SNN::~SNN()
@@ -27,45 +32,103 @@ void SNN::buildDefaultModel1()
 	mySNNModel.setReset(ui.lineEdit_Reset->text().toFloat());
 
 	mySNNModel.setBatchsize(ui.lineEdit_batchsize->text().toInt());
-	mySNNModel.setWeightSD(ui.lineEdit_sd->text().toFloat());
+	mySNNModel.setWeightSD(myModelConfig.uiModelConfig.lineEdit_sd->text().toFloat());
 
 	
-	if (ui.comboBox->currentIndex() == 1)
-	{
-		TIMESTEP = 8;
-	}
-	else if(ui.comboBox->currentIndex() == 0)
-	{
-		TIMESTEP = 25;
-	}
-	else if (ui.comboBox->currentIndex() ==2)
-	{
-		TIMESTEP = 64;
-	}
-	mySNNModel.setTEncodeMethod(ui.comboBox->currentIndex(), TIMESTEP);
-	ui.lineEdit_T->setText(QString::number(TIMESTEP));
+
+	TIMESTEP=ui.lineEdit_T->text().toInt();
 	mySNNModel.setT(TIMESTEP);
-	
-	mySNNModel.buildMyDefaultSNNModel();
+	mySNNModel.setTEncodeMethod(ui.comboBox->currentIndex(), TIMESTEP);
+	int LAYER1 = myModelConfig.uiModelConfig.spinBox_Layer0NeuronNumber->text().toInt();
+	int MNISTDIM1 = myModelConfig.uiModelConfig.spinBox_InputH->value();
+	int MNISTDIM2 = myModelConfig.uiModelConfig.spinBox_InputW->value();
+	int MNISTBLOCK = AlignVec(MNISTDIM1 * MNISTDIM2, AlignBytes / sizeof(float));
+	int OUTCLASS= myModelConfig.uiModelConfig.spinBox_outSize->value();
+	mySNNModel.buildMyDefaultSNNModel(LAYER1, MNISTDIM1,MNISTDIM2, OUTCLASS);
 	ui.pushButton_calc->setEnabled(true);
 	ui.pushButton_train->setEnabled(true);
+
+	updatePlotView();
 }
 void SNN::loadMnst()
 {
-	int imagecnt= myMNIST.loadMnst();
+	int MNISTDIM1 = myModelConfig.uiModelConfig.spinBox_InputH->value();
+	int MNISTDIM2 = myModelConfig.uiModelConfig.spinBox_InputW->value();
+	int TESTNUM = myModelConfig.uiModelConfig.lineEdit_totalImageNumber->text().toInt();
+	int OUTCLASS = myModelConfig.uiModelConfig.spinBox_outSize->value();
+	int dataset = myModelConfig.uiModelConfig.comboBox_dataset->currentIndex();
+	float maxValue = myModelConfig.uiModelConfig.lineEdit_maxValue->text().toFloat();
+	int imagecnt = 0;
+	switch (dataset)
+	{
+	case 0:
+		imagecnt=myMNIST.loadMnst(TESTNUM, MNISTDIM1, MNISTDIM2, OUTCLASS, maxValue);
+		usedDataSet = 0;
+		break;
+	case 1:
+		std::cout << "it's not realized: cifar10 dataset" << std::endl;
+		break;
+	case 2:
+		{
+			int imagecnt1 = myBioDataLoader.loadBioData(TESTNUM, MNISTDIM1, MNISTDIM2, maxValue);
+			int imagecnt2 = myBioDataLoader.loadBioDataIndex(TESTNUM, OUTCLASS);
+			if (imagecnt1 == imagecnt2 && imagecnt1 == TESTNUM)
+			{
+				imagecnt = imagecnt1;
+				usedDataSet = 2;
+			}
+			break;
+		}
 
-	ui.spinBox_CALCIMAGE->setMaximum(imagecnt - 1);
+	default:
+		std::cout << "it's not realized: unkown" << std::endl;
+		break;
+
+	}
+	if (imagecnt > 0)
+	{
+		ui.spinBox_CALCIMAGE->setMaximum(imagecnt - 1);
+	}
+	
 }
 
 void SNN::lauchModelCalcSimd()
 {
 	int imagecnt = ui.spinBox_CALCIMAGE->value();
-	float* currentBase = myMNIST.getImage() + imagecnt * MNISTBLOCK;
+	if (usedDataSet != 0 && usedDataSet != 2)
+	{
+		std::cout << "no images imported" << std::endl;
+		return;
+	}
+	if (mySNNModel.getModelBuilt() == false)
+	{
+		std::cout << "no model built" << std::endl;
+		return;
+	}
+	int MNISTDIM1 = myModelConfig.uiModelConfig.spinBox_InputH->value();
+	int MNISTDIM2 = myModelConfig.uiModelConfig.spinBox_InputW->value();
+	int MNISTBLOCK=AlignVec(MNISTDIM1 * MNISTDIM2, AlignBytes / sizeof(float));
+	
+	int OUTCLASS= myModelConfig.uiModelConfig.spinBox_outSize->value();
+	float* currentBase = NULL;
+	if (usedDataSet == 0)
+	{
+		currentBase = myMNIST.getImage() + imagecnt * MNISTBLOCK;
+	}
+	else if(usedDataSet == 2)
+	{
+		currentBase = myBioDataLoader.getImage() + imagecnt * MNISTBLOCK;
+	}
+	else
+	{
+
+	}
+	float maxValue = myModelConfig.uiModelConfig.lineEdit_maxValue->text().toFloat();
 	dim tsdim(1,TIMESTEP, MNISTBLOCK);
 	tensor ts;
 	ts.initData(tsdim);
 	float* dt = ts.getData();
-	mySNNModel.encodeInput(currentBase, MNISTBLOCK, dt);
+	mySNNModel.encodeInput(currentBase, MNISTBLOCK, dt, maxValue);
 	printf("latency successfully\n");
 
 	originalImage.clear();
@@ -76,7 +139,7 @@ void SNN::lauchModelCalcSimd()
 		for (int j = 0;j < MNISTDIM2;j++)
 		{
 			float oi = *(currentBase + i * MNISTDIM2 + j);
-			if (oi > 20)
+			if (oi > 20.0/256)
 			{
 				QScatterDataItem dit1 = QScatterDataItem(QVector3D(j, i, -1));
 				originalImage.push_back(dit1);
@@ -159,15 +222,37 @@ void SNN::lauchModelCalcSimd()
 void SNN::train()
 {
 	int imageNumber = ui.lineEdit_imagenum->text().toInt();
+	int totalImage = 0;
+	float maxValue = myModelConfig.uiModelConfig.lineEdit_maxValue->text().toFloat();
+	if ((usedDataSet==0|| usedDataSet==2)&& mySNNModel.getModelBuilt() == true)
+	{
 
-	mySNNModel.setLearnRate(ui.lineEdit_learnrate->text().toFloat());
-	mySNNModel.setMinLoss(ui.lineEdit_losswindow->text().toFloat());
-	mySNNModel.setDiffMinLoss(ui.lineEdit_difflosswindow->text().toFloat());
-	mySNNModel.setMaxEpoch(ui.lineEdit_maxepoch->text().toInt());
+		int MNISTDIM1 = myModelConfig.uiModelConfig.spinBox_InputH->value();
+		int MNISTDIM2 = myModelConfig.uiModelConfig.spinBox_InputW->value();
+		int MNISTBLOCK = AlignVec(MNISTDIM1 * MNISTDIM2, AlignBytes / sizeof(float));
+		int OUTCLASS = myModelConfig.uiModelConfig.spinBox_outSize->value();
+		
 
-	mySNNModel.setInput(myMNIST.getImage(), myMNIST.getImageIndexVector(), imageNumber, MNISTBLOCK,OUTCLASS);
-	mySNNModel.createTrainThread();
+		mySNNModel.setLearnRate(ui.lineEdit_learnrate->text().toFloat());
+		mySNNModel.setMinLoss(ui.lineEdit_losswindow->text().toFloat());
+		mySNNModel.setDiffMinLoss(myTrainConfig.uiTrainConfig.lineEdit_difflosswindow->text().toFloat());
+		mySNNModel.setMaxEpoch(ui.lineEdit_maxepoch->text().toInt());
 
+		if (usedDataSet == 0)
+		{
+			mySNNModel.setInput(myMNIST.getImage(), myMNIST.getImageIndexVector(), imageNumber, MNISTBLOCK, OUTCLASS, MNISTBLOCK, maxValue);
+		}
+		else if(usedDataSet==2)
+		{
+			mySNNModel.setInput(myBioDataLoader.getImage(), myBioDataLoader.getImageIndex(), imageNumber, MNISTBLOCK, OUTCLASS, MNISTBLOCK, maxValue);
+
+		}
+		mySNNModel.createTrainThread();
+	}
+	else
+	{
+		std::cout << "no images imported" << std::endl;
+	}
 }
 
 
@@ -191,6 +276,8 @@ void SNN::plot3D()
 }
 void SNN::plotOutSpike(int number)
 {
+	int OUTCLASS = myModelConfig.uiModelConfig.spinBox_outSize->value();
+
 	memSeries->clear();
 	outSpikeScatters->clear();
 	memSeries->setColor(Qt::black);
@@ -281,6 +368,9 @@ void SNN::initPlotBoard()
 	// ui.verticalLayout_7->addWidget(myView4);
 	memSeries = new QLineSeries;
 	outSpikeScatters = new QScatterSeries;
+	outSpikeScatters->setUseOpenGL(true);
+	outSpikeScatters->setMarkerSize(7);
+	outSpikeScatters->setColor(Qt::red);
 
 	myView2->chart()->addSeries(memSeries);
 	myView4->chart()->addSeries(outSpikeScatters);
@@ -325,18 +415,13 @@ void SNN::initPlotBoard()
 	myView3->chart()->createDefaultAxes();
 
 	QValueAxis* axisY3 = new QValueAxis;
+	int LAYER1 = myModelConfig.uiModelConfig.spinBox_Layer0NeuronNumber->text().toInt();
 	axisY3->setMin(-1);
 	axisY3->setMax(LAYER1);
 	axisY3->setTickCount(12);
 	axisY3->setLabelFormat("%d");
-	QValueAxis* axisY4 = new QValueAxis;
-	axisY4->setMin(-1);
-	axisY4->setMax(LAYER1);
-	axisY4->setTickCount(12);
-	axisY4->setLabelFormat("%d");
 	myView3->chart()->removeAxis(myView3->chart()->axisY());
 	myView3->chart()->addAxis(axisY3, Qt::AlignLeft);
-	myView3->chart()->addAxis(axisY4, Qt::AlignRight);
 	hiddenSpikeScatters->attachAxis(axisY3);
 	myView3->chart()->axisX()->setMax(TIMESTEP + 1);
 	myView3->chart()->axisX()->setMin(-1);
@@ -366,6 +451,21 @@ void SNN::changeNeuroConfig(int)
 	ui.lineEdit_T->setText(QString::number(TIMESTEP));
 	myView2->chart()->axisX()->setMax(TIMESTEP + 1);
 	myView3->chart()->axisX()->setMax(TIMESTEP + 1);
+	int LAYER1 = myModelConfig.uiModelConfig.spinBox_Layer0NeuronNumber->text().toInt();
+
+	myView3->chart()->axisY()->setMax(LAYER1 + 1);
 	myView4->chart()->axisX()->setMax(TIMESTEP + 1);
 	scatter->axisZ()->setMax(TIMESTEP + 1);
 }
+
+void SNN::updatePlotView()
+{
+	//ui.lineEdit_T->setText(QString::number(TIMESTEP));
+	myView2->chart()->axisX()->setMax(TIMESTEP + 1);
+	myView3->chart()->axisX()->setMax(TIMESTEP + 1);	
+	myView4->chart()->axisX()->setMax(TIMESTEP + 1);
+	scatter->axisZ()->setMax(TIMESTEP + 1);
+	scatter->axisX()->setMax(myModelConfig.uiModelConfig.spinBox_InputW->value());
+	scatter->axisY()->setMax(myModelConfig.uiModelConfig.spinBox_InputH->value());
+}
+

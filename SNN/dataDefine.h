@@ -5,25 +5,24 @@
 #include<fstream>
 #include<thread>
 #include<mutex>
-#define MNISTDIM1 28
-#define MNISTDIM2 28
-#define TESTNUM 10000
+//#define MNISTDIM1 28
+//#define MNISTDIM2 28
+//#define TESTNUM 10000
 
 #define AlignBytes 32 
 #define AlignBytesPool 32 
 #define AlignBytes16 16 
 #define AlignVec(x,V) ((x)%(V)==0?(x):((x)/(V)+1)*(V))
 
-#define MNISTBLOCK AlignVec(MNISTDIM1*MNISTDIM2,AlignBytes/sizeof(float))
+//#define MNISTBLOCK AlignVec(MNISTDIM1*MNISTDIM2,AlignBytes/sizeof(float))
 
 //#define TIMESTEP 25
-#define OUTCLASS 10
-#define TAO 100
-#define NOBACKGGROUNDB
+//#define OUTCLASS 10
+
 #define PI 3.1415926f
 #define TRUCATE 100000
-#define LAYER1 784
-#define VTHR 5
+//#define LAYER1 784
+
 static std::default_random_engine gen;
 
 typedef struct dim

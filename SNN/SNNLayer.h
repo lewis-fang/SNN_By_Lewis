@@ -31,8 +31,8 @@ public:
 	float* getOutAverageEXP(int b) { return outAverageTEXP + b * AlignVec(outSpike.getDim().dim3, AlignBytes / sizeof(float)); };
 	void checkSingleNeuro(float* input,float* mem, float* spike);
 	//---------------------------------------------------------------------------------q train
-	void dLinearMatMultplySimdW(  int b);
-	void dLinearMatMultplySimdS(tensor& lastdCI, int b);
+	void dWeightPropagateSimdW(  int b);
+	void dLossPropagateSimdS(tensor& lastdCI, int b);
 	tensor& getDCI() { return dCI; };
 	tensor getIdealOut() { return idealOutSpike; };
 	void setDCI(tensor xxoo) { dCI = xxoo; };

@@ -3,24 +3,50 @@
 
 MNISTLoader::~MNISTLoader()
 {
-	_mm_free(mnistTEST);
-	_mm_free(mnistTESTIndex);
-	_mm_free(mnistTESTIndexVector);
+	if (mnistTEST != NULL)
+	{
+		_mm_free(mnistTEST);
+	}
+	if (mnistTESTIndex != NULL)
+	{
+		_mm_free(mnistTESTIndex);
+	}
+	if (mnistTESTIndexVector != NULL)
+	{
+		_mm_free(mnistTESTIndexVector);
+	}	
 }
 MNISTLoader::MNISTLoader()
 {
-	mnistTEST = (float*)_mm_malloc(TESTNUM * MNISTBLOCK * sizeof(float), AlignBytes);
-	mnistTESTIndex = (float*)_mm_malloc(TESTNUM * sizeof(float), AlignBytes);
-	mnistTESTIndexVector = (float*)_mm_malloc(TESTNUM * AlignVec(OUTCLASS,AlignBytes/sizeof(float)) * sizeof(float), AlignBytes);
-	
-	memset(mnistTESTIndex, 0, TESTNUM * sizeof(float));
-	memset(mnistTEST, 0, TESTNUM * MNISTBLOCK * sizeof(float));
-	memset(mnistTESTIndexVector, 0, TESTNUM * AlignVec(OUTCLASS,  AlignBytes / sizeof(float)) * sizeof(float));
+	mnistTEST = NULL;
+	mnistTESTIndex = NULL;
+	mnistTESTIndexVector = NULL;
 	imagecnt = 0;
 	hadData = false;
 };
-int MNISTLoader::loadMnst()
+int MNISTLoader::loadMnst(int TESTNUM,int MNISTDIM1,int MNISTDIM2,int OUTCLASS,float MaxValue)
 {
+	int MNISTBLOCK = AlignVec(MNISTDIM1 * MNISTDIM2, AlignBytes / sizeof(float));
+	if (mnistTEST != NULL)
+	{
+		_mm_free(mnistTEST);
+	}
+	if (mnistTESTIndex != NULL)
+	{
+		_mm_free(mnistTESTIndex);
+	}
+	if (mnistTESTIndexVector != NULL)
+	{
+		_mm_free(mnistTESTIndexVector);
+	}
+	mnistTEST = (float*)_mm_malloc(TESTNUM * MNISTBLOCK * sizeof(float), AlignBytes);
+	mnistTESTIndex = (float*)_mm_malloc(TESTNUM * sizeof(float), AlignBytes);
+	mnistTESTIndexVector = (float*)_mm_malloc(TESTNUM * AlignVec(OUTCLASS, AlignBytes / sizeof(float)) * sizeof(float), AlignBytes);
+
+	memset(mnistTESTIndex, 0, TESTNUM * sizeof(float));
+	memset(mnistTEST, 0, TESTNUM * MNISTBLOCK * sizeof(float));
+	memset(mnistTESTIndexVector, 0, TESTNUM * AlignVec(OUTCLASS, AlignBytes / sizeof(float)) * sizeof(float));
+
 	QString fileName = QFileDialog::getOpenFileName(this, tr("import mnist train"), "", tr("CSV(*.csv)")); //Ñ¡ÔñÂ·¾¶
 	std::cout << fileName.toLocal8Bit().data() << std::endl;
 	QFile Wts(fileName);
@@ -40,7 +66,7 @@ int MNISTLoader::loadMnst()
 				mnistTESTIndex[imagecnt] = qstrlist.at(0).toFloat();
 				for (int i = 1;i < MNISTDIM1 * MNISTDIM2 + 1;i++)
 				{
-					currentBase[i - 1] = qstrlist.at(i).toFloat();
+					currentBase[i - 1] = qstrlist.at(i).toFloat() / MaxValue;
 				}
 				imagecnt++;
 			}
@@ -58,7 +84,7 @@ int MNISTLoader::loadMnst()
 		{
 			std::cout << "MNST images are imported successfully!-->" << imagecnt << std::endl;
 			hadData = true;
-			convertOutIndex2Vector();
+			convertOutIndex2Vector(OUTCLASS);
 		}
 		else
 		{
@@ -68,7 +94,7 @@ int MNISTLoader::loadMnst()
 	return imagecnt;
 }
 
-void MNISTLoader::convertOutIndex2Vector()
+void MNISTLoader::convertOutIndex2Vector(int OUTCLASS)
 {
 	int offset = AlignBytes / sizeof(float);
 	for (int i = 0;i < imagecnt;i++)

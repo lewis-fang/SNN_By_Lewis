@@ -19,7 +19,7 @@ void SNNLayer::setIdealOut(float* tsData, int b)
 	for (int t = 0;t < TIMESTEP;t++)
 	{
 		float* data = idealOutSpike.getDim3Data(b, t);
-		memcpy(data, tsData, sizeof(float) * OUTCLASS);
+		memcpy(data, tsData, sizeof(float) * idealOutSpike.getDim().dim3);
 	}
 
 }
@@ -39,13 +39,14 @@ bool SNNLayer::initSnnLayer(dim inputDim,dim outDim, float beta, float Uthr, int
 		outSpike.initData(outDim);
 		std::cout << "	outSpike initiated" << std::endl;
 		idealOutSpike.initData(outDim);
-		dim dimW(1, inputDim.dim3, outDim.dim3);		dim dimB(1,1, outDim.dim3);
+		dim dimW(1, inputDim.dim3, outDim.dim3);		
+		dim dimB(1,1, outDim.dim3);
 		W.initData(dimW);
 		W.randInit(sd, mu);
 		dim dimWT(1, outDim.dim3, inputDim.dim3);
 		WT.initData(dimWT);
 		biasSimd.initData(dimB);
-
+	//	biasSimd.valueInit(0.0);
 		std::cout << "	W initiated" << std::endl;
 		TransMatrix();
 		//--------------------------------------------------------------------------------for traing collection
@@ -260,7 +261,7 @@ void SNNLayer::checkSingleNeuro(float* input,float* mem, float*spike)
 	}
 }
 //_____________________q
-void SNNLayer::dLinearMatMultplySimdW( int b)
+void SNNLayer::dWeightPropagateSimdW( int b)
 {
 
 	dCWTotal.valueInit(0.0,-1,b);
@@ -335,7 +336,7 @@ void SNNLayer::dXdW(tensor dCX, tensor& dCW, int t, int b)
 		}
 	}
 }
-void SNNLayer::dLinearMatMultplySimdS(tensor& lastdCI, int b)
+void SNNLayer::dLossPropagateSimdS(tensor& lastdCI, int b)
 {
 	//dSpike/dSpike=dSpike/dU*dU/dX*dX/dSpike
 	dCU.valueInit(0.0,-1,b);

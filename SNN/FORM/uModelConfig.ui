@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ModelConfig</class>
+ <widget class="QWidget" name="ModelConfig">
+  <property name="windowModality">
+   <enum>Qt::NonModal</enum>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>351</width>
+    <height>480</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>ModelConfig</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="2">
+    <widget class="QLineEdit" name="lineEdit_totalImageNumber">
+     <property name="mouseTracking">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>10000</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="2">
+    <widget class="QSpinBox" name="spinBox_InputW">
+     <property name="singleStep">
+      <number>1</number>
+     </property>
+     <property name="value">
+      <number>28</number>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="1">
+    <widget class="QLabel" name="label_2">
+     <property name="text">
+      <string>Input Size Dim3-W(col)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="2">
+    <widget class="QSpinBox" name="spinBox_nc">
+     <property name="value">
+      <number>0</number>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="1">
+    <widget class="QLabel" name="label">
+     <property name="text">
+      <string>OutSize(OUTCLASS)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="6" column="2">
+    <widget class="QComboBox" name="comboBox_dataset">
+     <item>
+      <property name="text">
+       <string>MNIST</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>CIFAR10</string>
+      </property>
+     </item>
+     <item>
+      <property name="text">
+       <string>LEWIS</string>
+      </property>
+     </item>
+    </widget>
+   </item>
+   <item row="2" column="2">
+    <widget class="QSpinBox" name="spinBox_InputH">
+     <property name="value">
+      <number>28</number>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="2">
+    <widget class="QSpinBox" name="spinBox_hpr"/>
+   </item>
+   <item row="2" column="1">
+    <widget class="QLabel" name="label_3">
+     <property name="text">
+      <string>Input Size Dim3-H(row)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="3" column="2">
+    <widget class="QSpinBox" name="spinBox_outSize">
+     <property name="minimum">
+      <number>1</number>
+     </property>
+     <property name="value">
+      <number>10</number>
+     </property>
+    </widget>
+   </item>
+   <item row="10" column="1">
+    <widget class="QLabel" name="label_11">
+     <property name="text">
+      <string>max value</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="2">
+    <widget class="QLineEdit" name="lineEdit_sd">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="text">
+      <string>0.1</string>
+     </property>
+    </widget>
+   </item>
+   <item row="0" column="1">
+    <widget class="QLabel" name="label_5">
+     <property name="text">
+      <string>Total Image num(TESTNUM)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="10" column="2">
+    <widget class="QLineEdit" name="lineEdit_maxValue">
+     <property name="text">
+      <string>256</string>
+     </property>
+    </widget>
+   </item>
+   <item row="7" column="1">
+    <widget class="QLabel" name="label_8">
+     <property name="text">
+      <string>null collumn(nc)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="2">
+    <widget class="QSpinBox" name="spinBox_Layer0NeuronNumber">
+     <property name="maximum">
+      <number>10000</number>
+     </property>
+     <property name="value">
+      <number>1024</number>
+     </property>
+    </widget>
+   </item>
+   <item row="5" column="1">
+    <widget class="QLabel" name="label_4">
+     <property name="text">
+      <string>Layer0 neuron number</string>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="2">
+    <widget class="QSpinBox" name="spinBox_nhr"/>
+   </item>
+   <item row="6" column="1">
+    <widget class="QLabel" name="label_7">
+     <property name="text">
+      <string>DataSet</string>
+     </property>
+    </widget>
+   </item>
+   <item row="8" column="1">
+    <widget class="QLabel" name="label_9">
+     <property name="text">
+      <string>null header row(nhr)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="4" column="1">
+    <widget class="QLabel" name="label_6">
+     <property name="text">
+      <string>Weight Initial sd</string>
+     </property>
+    </widget>
+   </item>
+   <item row="9" column="1">
+    <widget class="QLabel" name="label_10">
+     <property name="text">
+      <string>null patition row(npr)</string>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="1">
+    <widget class="QLabel" name="label_12">
+     <property name="text">
+      <string>Noamalize</string>
+     </property>
+    </widget>
+   </item>
+   <item row="11" column="2">
+    <widget class="QCheckBox" name="checkBox_Noamalize">
+     <property name="text">
+      <string/>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

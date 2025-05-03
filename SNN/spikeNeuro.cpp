@@ -69,7 +69,7 @@ __m256 spikeNeuro::activateSimd(__m256 xlastSimd,__m256 xcurrentSimd)
 	__m256 lastMemSimd= xcurrentSimd;
 	if (resetMethod == 0)
 	{
-		//lastMemSimd = xcurrentSimd;
+
 	}
 	else
 	{//1

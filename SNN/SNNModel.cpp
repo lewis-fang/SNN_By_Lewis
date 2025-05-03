@@ -15,6 +15,7 @@ snnModel::snnModel()
 	reset = 1;
 	TIMESTEP = 25;
 	encodeMethod = 0;
+	modelBuilt = false;
 	/*
 	* 0 first fired
 	* 1 binary rete encode
@@ -26,11 +27,11 @@ snnModel::snnModel()
 }
 void snnModel::createTrainThread()
 {
-	std::thread thr(&snnModel::train, this);
+	std::thread thr(&snnModel::BPTT, this);
 	thr.detach();
 }
 
-void snnModel::buildMyDefaultSNNModel()
+void snnModel::buildMyDefaultSNNModel(int LAYER1, int MNISTDIM1, int MNISTDIM2,int OUTCLASS)
 {
 
 	float sd = weitInitialsd;
@@ -60,6 +61,8 @@ void snnModel::buildMyDefaultSNNModel()
 	std::cout << "layer 2 added~" << std::endl;
 	//bool SNNLayer::initSnnLayer(dim inputDim,dim outDim, float beta, float Uthr, int resetMethod,float sd,float mu)
 	lossType = 2;
+
+	modelBuilt = true;
 }
 void snnModel::fowardRecurrentSpikingSimd(tensor ts, int b)
 {
@@ -83,7 +86,7 @@ void snnModel::fowardRecurrentSpikingSimd(tensor ts, int b)
 	}
 }
 
-void snnModel::train()
+void snnModel::BPTT()
 {
 	if (isTrning == true)
 	{
@@ -117,7 +120,7 @@ void snnModel::train()
 	}
 	float C = 0.0, lastC = 0.0;
 	size_t depth = mySNNStructure.size();
-	int outLen = OUTCLASS;
+	int outLen = mySNNStructure.back().getOut().getDim().dim3;
 	std::thread* thrTrain = new std::thread[batchSize];
 	float* vC = (float*)_mm_malloc(sizeof(float) * batchSize, AlignBytes);
 	float* outValue = (float*)_mm_malloc(sizeof(float) * outLen * batchSize, AlignBytes);
@@ -156,11 +159,11 @@ void snnModel::train()
 		}
 		if (lossType == 1)
 		{
-			C = sqrt(C / NIMG/TIMESTEP);
+			C = sqrt(C / NIMG);
 		}
 		else
 		{
-			C /= (NIMG*TIMESTEP);
+			C /= (NIMG);
 		}
 		vloss.push_back(C);
 
@@ -207,6 +210,7 @@ void snnModel::updateLossParrallel(tensor bImage, float* vC, int outLen, int rea
 
 	fowardRecurrentSpikingSimd(bImage,b);
 	SNNLayer sEndLayer = mySNNStructure.back();
+	int OUTCLASS = sEndLayer.getOut().getDim().dim3;
 	sEndLayer.setIdealOut(idealOut.at(realIndex),b);
 	vC[b] = calculateC(sEndLayer.getOutAverageEXP(b), idealOut.at(realIndex), OUTCLASS);
 
@@ -220,12 +224,12 @@ void snnModel::updateLossParrallel(tensor bImage, float* vC, int outLen, int rea
 	{
 		SNNLayer slayer = mySNNStructure.at(sl);
 		SNNLayer lastslayer = mySNNStructure.at(sl - 1);
-		slayer.dLinearMatMultplySimdS(lastslayer.getDCI(),b);
+		slayer.dLossPropagateSimdS(lastslayer.getDCI(),b);
 	}
 
 	for (SNNLayer slayer : mySNNStructure)
 	{
-		slayer.dLinearMatMultplySimdW(b);
+		slayer.dWeightPropagateSimdW(b);
 	}
 	std::unique_lock<std::mutex> unilock(myMutexC);
 	parrellelIBatchTrainDone++;
@@ -254,12 +258,13 @@ void snnModel::dcalculateC(T* idealx, T* actualy, T* dyVdx, int sz)
 
 }
 
-void snnModel::setInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength)
+void snnModel::setInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength,int MNISTBLOCK,float maxValue)
 {
 	InputImageSeries.clear();
 	idealOut.clear();
 	dim tsdim(1,TIMESTEP, MNISTBLOCK);
 	int offset = AlignBytes / sizeof(float);
+	//float maxValue=my
 	for (int imagecnt  = 0;imagecnt < imgNum;imagecnt++)
 	{
 		float* currentBase = totalImg + imagecnt * MNISTBLOCK;
@@ -267,7 +272,7 @@ void snnModel::setInput(float* totalImg, float* ideal, int imgNum, int blockLeng
 		ts.initData(tsdim);
 		float* dt = ts.getData();
 		//latency(currentBase, MNISTBLOCK, dt, TAO, VTHR);
-		myEnCoder.encodeInput(currentBase, MNISTBLOCK, dt);
+		myEnCoder.encodeInput(currentBase, MNISTBLOCK, dt, maxValue);
 		InputImageSeries.push_back(ts);
 
 		idealOut.push_back(ideal+ imagecnt*AlignVec(outLength, offset));
@@ -287,11 +292,11 @@ void snnModel::saveToFile()
 		SNNLayer slayer=mySNNStructure.at(i);
 		tensor W = slayer.getW();
 		float* bData = slayer.getB();
-		for (int j = 0;j < slayer.getOut().getDim().dim3;j++)
+		for (int j = 0;j < slayer.getInput().getDim().dim3;j++)
 		{
-			fo << "[Layer_" << i << "-out_"<<j << "-weights]";
+			fo << "[Layer_" << i << "-out_"<<j << "-weights]" ;
 			float* wData = W.getDim3Data(0, j);
-			for (int k = 0;k < slayer.getInput().getDim().dim3;k++)
+			for (int k = 0;k < slayer.getOut().getDim().dim3;k++)
 			{
 				fo << wData[k] << ",";
 			}
@@ -299,8 +304,7 @@ void snnModel::saveToFile()
 		}
 		fo << "[Layer_" << i  << "-bias]";
 		for (int j = 0;j < slayer.getOut().getDim().dim3;j++)
-		{
-			
+		{		
 			fo << bData[j] << ",";
 		}
 		fo << std::endl;
@@ -333,8 +337,8 @@ tensor snnModel::getHiddenOut(int i) //{ return mySNNStructure.at(i).getOut(); }
 	}
 }
 
-bool snnModel::encodeInput(float* imageInput, size_t length, float* spikeInput)
+bool snnModel::encodeInput(float* imageInput, size_t length, float* spikeInput, float maxValue)
 {
-	return myEnCoder.encodeInput(imageInput, length, spikeInput);
+	return myEnCoder.encodeInput(imageInput, length, spikeInput,maxValue);
 
 }

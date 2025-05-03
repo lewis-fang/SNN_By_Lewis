@@ -4,8 +4,9 @@ enCoder::enCoder()
 {
 	encodeMethod=0;
 	TIMESTEP=25;
+	needNormalize = true;
 }
-bool enCoder::latency(float* imageInput, size_t length, float* spikeInput, float tao, float Vthr)
+bool enCoder::latency(float* imageInput, size_t length, float* spikeInput, float tao, float Vthr,float maxValue)
 {//imageInput 28x28
 	//spikeInput 28*28*T
 	int offset = AlignBytes / sizeof(float);
@@ -51,7 +52,7 @@ bool enCoder::latency(float* imageInput, size_t length, float* spikeInput, float
 	_mm_free(spikeTime);
 	return true;
 }
-bool enCoder::binaryCode(char* imageInput, size_t length, float* spikeInput)
+bool enCoder::binaryCode(uint32_t* imageInput, size_t length, float* spikeInput, float maxValue)
 {
 	//spikeInput 28*28*T
 	for (int t = 0;t < TIMESTEP;t++)
@@ -60,51 +61,88 @@ bool enCoder::binaryCode(char* imageInput, size_t length, float* spikeInput)
 
 		for (int i = 0;i < length;i += 1)
 		{
-			char x = imageInput[i];
+			uint32_t x = imageInput[i] ;
 			currentStrd[i] = float((x >> (TIMESTEP - 1 - t)) & 0x1);
 		}
 	}
 	return true;
 }
 
-bool enCoder::aveRateCode(float* imageInput, size_t length, float* spikeInput, float Vthr)
+bool enCoder::aveRateCode(float* imageInput, size_t length, float* spikeInput, float Vthr, float maxValue)
 {
+	int revolution = 64;
 	for (int i = 0;i < length;i += 1)
 	{
-		int um = 255 / TIMESTEP + 1;
-		int inverval = (256 - *(imageInput + i)) / um + Vthr;
-		//printf("%d,%d\n", imageInput[i], inverval);
-		for (int t = inverval;t < TIMESTEP;t += inverval)
+		int inverval = revolution *(1 - *(imageInput + i))+ 32;
+		if (inverval > TIMESTEP / 4) inverval = TIMESTEP + 1;
+		if (inverval < TIMESTEP)
 		{
-			float* currentStrd = spikeInput + t * length;
-			currentStrd[i] = 1;
+			for (int t = inverval;t < TIMESTEP;t += inverval)
+			{
+				float* currentStrd = spikeInput + t * length;
+				currentStrd[i] = 1;
+			}
 		}
+	
 	}
 	return true;
 }
 
-bool enCoder::encodeInput(float* imageInput, size_t length, float* spikeInput)
+bool enCoder::encodeInput(float* imageInput, size_t length, float* spikeInput, float maxValue)
 {
+	float* normalizeImageInput = (float*)_mm_malloc(length * sizeof(float), AlignBytes);
+	normalize(imageInput, length, normalizeImageInput);
+	//memcpy(imageInput, normalizeImageInput, length * sizeof(float));
+
 	switch (encodeMethod)
 	{
 	case 0:
-		latency(imageInput, MNISTBLOCK, spikeInput, TAO, VTHR);
+		latency(normalizeImageInput, length, spikeInput, TAO, VTHR, maxValue);
 		break;
 	case 1:
 	{
-		char* charMnistTEST = (char*)_mm_malloc(TESTNUM * MNISTBLOCK * sizeof(char), AlignBytes);
-		memset(charMnistTEST, 0, TESTNUM * MNISTBLOCK * sizeof(char));
+		uint32_t* charMnistTEST = (uint32_t*)_mm_malloc(length * sizeof(uint32_t), AlignBytes);
+		memset(charMnistTEST, 0, length * sizeof(uint32_t));
 		for (int i = 0;i < length;i++)
 		{
-			charMnistTEST[i] = char(imageInput[i]);
+			charMnistTEST[i] = uint32_t(normalizeImageInput[i]* maxValue);
 		}
-		binaryCode(charMnistTEST, MNISTBLOCK, spikeInput);
+		binaryCode(charMnistTEST, length, spikeInput,  maxValue);
 		_mm_free(charMnistTEST);
 		break;
 	}
 	case 2:
-		aveRateCode(imageInput, MNISTBLOCK, spikeInput, VTHR);
+		aveRateCode(normalizeImageInput, length, spikeInput, VTHR , maxValue);
 		break;
+	default:
+		break;
+	}
+	return true;
+}
+
+bool enCoder::normalize(float* imageInput, size_t length, float* normalizeImageInput)
+{
+	
+	switch (needNormalize)
+	{
+	case false:
+		memcpy(normalizeImageInput, imageInput, length * sizeof(float));
+		break;
+	case 1:
+	{
+		float mmaxv = imageInput[0];
+		float mminv = imageInput[0];
+		for (int i = 0;i < length;i++)
+		{
+			if(mmaxv < imageInput[i]) mmaxv = imageInput[i];
+			if (mminv > imageInput[i]) mminv = imageInput[i];
+		}
+		for (int i = 0;i < length;i++)
+		{
+			normalizeImageInput[i] = (imageInput[i] - mminv) / (mmaxv - mminv);
+		}
+		break;
+	}
 	default:
 		break;
 	}
