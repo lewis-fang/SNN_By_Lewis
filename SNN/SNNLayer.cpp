@@ -269,7 +269,7 @@ void SNNLayer::dWeightPropagateSimdW( int b)
 	if (hiddenNumth == 1)
 	{		
 		dCU.valueInit(0.0, -1, b);
-		dCX.valueInit(0.0, -1, b);
+		//dCX.valueInit(0.0, -1, b);
 		//
 		for (int t = TIMESTEP - 1;t >= 0;t--)
 		{
@@ -283,10 +283,10 @@ void SNNLayer::dWeightPropagateSimdW( int b)
 				dUdUsub1(dCU, t, b);
 			}
 		}
-		for (int t = TIMESTEP - 1;t >= 0;t--)
-		{
-			dUdX(dCU, dCX, t, b);
-		}
+		//for (int t = TIMESTEP - 1;t >= 0;t--)
+		//{
+		//	dUdX(dCU, dCX, t, b);
+		//}
 	}
 	for (int t = TIMESTEP - 1;t >= 0;t--)
 	{
@@ -340,7 +340,7 @@ void SNNLayer::dLossPropagateSimdS(tensor& lastdCI, int b)
 {
 	//dSpike/dSpike=dSpike/dU*dU/dX*dX/dSpike
 	dCU.valueInit(0.0,-1,b);
-	dCX.valueInit(0.0, -1, b);
+	//dCX.valueInit(0.0, -1, b);
 	lastdCI.valueInit(0.0, -1, b);
 	
 	for (int t = TIMESTEP - 1;t >= 0;t--)
@@ -357,7 +357,7 @@ void SNNLayer::dLossPropagateSimdS(tensor& lastdCI, int b)
 	}
 	for (int t = TIMESTEP - 1;t >= 0;t--)
 	{
-		dUdX(dCU, dCX, t, b);
+		//dUdX(dCU, dCX, t, b);
 		dXdI(dCX, lastdCI, t, b);
 	}
 //	std::cout << "dLinearMatMultplySimdS: dUdUsub1 ok" << std::endl;
@@ -367,18 +367,19 @@ void SNNLayer::dSSurrogate(tensor dCI, tensor& dCU, int t, int b)
 	float* dCIPointer = dCI.getDim3Data(b, t);
 	float* dCUPointer = dCU.getDim3Data(b, t);
 	float* memPointer = outputMemTensor.getDim3Data(b, t);
+	__m256 piReg = _mm256_set1_ps(PI);
+	__m256 oneReg = _mm256_set1_ps(1.0f);
+	__m256 invpiReg = _mm256_set1_ps(1.0 / PI);
 	for (int i = 0;i < dCI.getDim().dim3;i += AlignBytes / sizeof(float))
 	{
 		__m256 memReg = _mm256_load_ps(memPointer + i);
 		__m256 dCIReg = _mm256_load_ps(dCIPointer + i);
 		__m256 dCUReg = _mm256_load_ps(dCUPointer + i);
-		memReg = _mm256_mul_ps(memReg, _mm256_set1_ps(PI));
-		memReg = _mm256_mul_ps(memReg, memReg);
-		memReg = _mm256_add_ps(memReg, _mm256_set1_ps(1.0f));
-		memReg = _mm256_div_ps(_mm256_set1_ps(1.0/PI), memReg);
-		memReg = _mm256_mul_ps(memReg, dCIReg);
-		dCUReg =_mm256_add_ps(dCUReg, memReg);
-		_mm256_stream_ps(dCUPointer + i, dCUReg);
+		memReg = _mm256_mul_ps(memReg, piReg);
+		memReg = _mm256_fmadd_ps(memReg, memReg, oneReg);
+		memReg = _mm256_div_ps(invpiReg,memReg);
+		memReg = _mm256_fmadd_ps(memReg, dCIReg, dCUReg);
+		_mm256_stream_ps(dCUPointer + i, memReg);
 	}
 }
 void SNNLayer::dSoftmax( int t, int b)
