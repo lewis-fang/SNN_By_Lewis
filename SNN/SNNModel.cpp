@@ -15,7 +15,6 @@ snnModel::snnModel()
 	reset = 1;
 	TIMESTEP = 25;
 	encodeMethod = 0;
-	modelBuilt = false;
 	/*
 	* 0 first fired
 	* 1 binary rete encode
@@ -27,11 +26,87 @@ snnModel::snnModel()
 }
 void snnModel::createTrainThread()
 {
-	std::thread thr(&snnModel::BPTT, this);
+	std::thread thr(&snnModel::train, this);
 	thr.detach();
 }
+bool snnModel::latency(float* imageInput,size_t length, float* spikeInput, float tao,float Vthr)
+{//imageInput 28x28
+	//spikeInput 28*28*T
+	int offset = AlignBytes / sizeof(float);
+	__m256 VthrReg = _mm256_set1_ps(Vthr);
+	__m256 taoReg = _mm256_set1_ps(tao);
+	int a = 0x7fffffff;
+	__m256 tregf2 = _mm256_set1_ps(*(float*)&a);
+	__m256 fequal = _mm256_set1_ps(0.5);
 
-void snnModel::buildMyDefaultSNNModel(int LAYER1, int MNISTDIM1, int MNISTDIM2,int OUTCLASS)
+	//std::ofstream of("./1.csv", std::ios::app);
+	float* spikeTime = (float*)_mm_malloc(length * sizeof(float), AlignBytes);
+	for (int i = 0;i < length;i+= offset)
+	{
+		__m256 offsetReg = _mm256_load_ps(imageInput+i);
+		//__m256 cmpreg = _mm256_cmp_ps(offsetReg, VthrReg, 1);
+		__m256 tmpReg=_mm256_sub_ps(offsetReg, VthrReg);
+		tmpReg = _mm256_div_ps(offsetReg,tmpReg);
+		tmpReg = _mm256_log_ps(tmpReg);
+		tmpReg = _mm256_mul_ps(tmpReg, taoReg);
+		//tmpReg= _mm256_or_ps(tmpReg, cmpreg);
+		tmpReg = _mm256_and_ps(tmpReg, tregf2);
+		_mm256_stream_ps(spikeTime + i, tmpReg);
+	}
+	memset(spikeInput, 0, TIMESTEP * length * sizeof(float));
+	__m256 ones = _mm256_set1_ps(1);
+
+	for (int t = 0;t < TIMESTEP;t++)
+	{
+		float* currentStrd = spikeInput + t * length;
+		__m256 tregf = _mm256_set1_ps(t);
+		
+		for (int i = 0;i < length;i += offset)
+		{
+			__m256 offsetReg = _mm256_load_ps(spikeTime + i);	
+			offsetReg = _mm256_sub_ps(offsetReg, tregf);
+			offsetReg = _mm256_and_ps(offsetReg, tregf2);
+
+			offsetReg = _mm256_cmp_ps(offsetReg, fequal,1);
+			offsetReg = _mm256_and_ps(offsetReg, ones);
+			_mm256_stream_ps(currentStrd + i, offsetReg);
+		}
+	}
+	_mm_free(spikeTime);
+	return true;
+}
+bool snnModel::binaryCode(char* imageInput, size_t length, float* spikeInput)
+{
+	//spikeInput 28*28*T
+	for (int t = 0;t < TIMESTEP;t++)
+	{
+		float* currentStrd = spikeInput + t * length;
+
+		for (int i = 0;i < length;i += 1)
+		{
+			char x = imageInput[i];
+			currentStrd[i] = float((x >> (TIMESTEP - 1 - t)) & 0x1);
+		}
+	}
+	return true;
+}
+
+bool snnModel::aveRateCode(float* imageInput, size_t length, float* spikeInput, float Vthr)
+{
+	for (int i = 0;i < length;i += 1)
+	{
+		int um = 255 / TIMESTEP+ 1;
+		int inverval = (256 - *(imageInput + i)) / um + Vthr;
+		//printf("%d,%d\n", imageInput[i], inverval);
+		for (int t = inverval;t < TIMESTEP;t += inverval)
+		{
+			float* currentStrd = spikeInput + t * length;
+			currentStrd[i] = 1;
+		}
+	}
+	return true;
+}
+void snnModel::buildMyDefaultSNNModel()
 {
 
 	float sd = weitInitialsd;
@@ -61,8 +136,6 @@ void snnModel::buildMyDefaultSNNModel(int LAYER1, int MNISTDIM1, int MNISTDIM2,i
 	std::cout << "layer 2 added~" << std::endl;
 	//bool SNNLayer::initSnnLayer(dim inputDim,dim outDim, float beta, float Uthr, int resetMethod,float sd,float mu)
 	lossType = 2;
-
-	modelBuilt = true;
 }
 void snnModel::fowardRecurrentSpikingSimd(tensor ts, int b)
 {
@@ -86,7 +159,7 @@ void snnModel::fowardRecurrentSpikingSimd(tensor ts, int b)
 	}
 }
 
-void snnModel::BPTT()
+void snnModel::train()
 {
 	if (isTrning == true)
 	{
@@ -120,7 +193,7 @@ void snnModel::BPTT()
 	}
 	float C = 0.0, lastC = 0.0;
 	size_t depth = mySNNStructure.size();
-	int outLen = mySNNStructure.back().getOut().getDim().dim3;
+	int outLen = OUTCLASS;
 	std::thread* thrTrain = new std::thread[batchSize];
 	float* vC = (float*)_mm_malloc(sizeof(float) * batchSize, AlignBytes);
 	float* outValue = (float*)_mm_malloc(sizeof(float) * outLen * batchSize, AlignBytes);
@@ -159,11 +232,11 @@ void snnModel::BPTT()
 		}
 		if (lossType == 1)
 		{
-			C = sqrt(C / NIMG);
+			C = sqrt(C / NIMG/TIMESTEP);
 		}
 		else
 		{
-			C /= (NIMG);
+			C /= (NIMG*TIMESTEP);
 		}
 		vloss.push_back(C);
 
@@ -210,7 +283,6 @@ void snnModel::updateLossParrallel(tensor bImage, float* vC, int outLen, int rea
 
 	fowardRecurrentSpikingSimd(bImage,b);
 	SNNLayer sEndLayer = mySNNStructure.back();
-	int OUTCLASS = sEndLayer.getOut().getDim().dim3;
 	sEndLayer.setIdealOut(idealOut.at(realIndex),b);
 	vC[b] = calculateC(sEndLayer.getOutAverageEXP(b), idealOut.at(realIndex), OUTCLASS);
 
@@ -224,12 +296,12 @@ void snnModel::updateLossParrallel(tensor bImage, float* vC, int outLen, int rea
 	{
 		SNNLayer slayer = mySNNStructure.at(sl);
 		SNNLayer lastslayer = mySNNStructure.at(sl - 1);
-		slayer.dLossPropagateSimdS(lastslayer.getDCI(),b);
+		slayer.dLinearMatMultplySimdS(lastslayer.getDCI(),b);
 	}
 
 	for (SNNLayer slayer : mySNNStructure)
 	{
-		slayer.dWeightPropagateSimdW(b);
+		slayer.dLinearMatMultplySimdW(b);
 	}
 	std::unique_lock<std::mutex> unilock(myMutexC);
 	parrellelIBatchTrainDone++;
@@ -258,13 +330,12 @@ void snnModel::dcalculateC(T* idealx, T* actualy, T* dyVdx, int sz)
 
 }
 
-void snnModel::setInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength,int MNISTBLOCK,float maxValue)
+void snnModel::setInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength)
 {
 	InputImageSeries.clear();
 	idealOut.clear();
 	dim tsdim(1,TIMESTEP, MNISTBLOCK);
 	int offset = AlignBytes / sizeof(float);
-	//float maxValue=my
 	for (int imagecnt  = 0;imagecnt < imgNum;imagecnt++)
 	{
 		float* currentBase = totalImg + imagecnt * MNISTBLOCK;
@@ -272,40 +343,107 @@ void snnModel::setInput(float* totalImg, float* ideal, int imgNum, int blockLeng
 		ts.initData(tsdim);
 		float* dt = ts.getData();
 		//latency(currentBase, MNISTBLOCK, dt, TAO, VTHR);
-		myEnCoder.encodeInput(currentBase, MNISTBLOCK, dt, maxValue);
+		encodeInput(currentBase, MNISTBLOCK, dt);
 		InputImageSeries.push_back(ts);
-
-		idealOut.push_back(ideal+ imagecnt*AlignVec(outLength, offset));
+		float* out = (float*)_mm_malloc(sizeof(float) * AlignVec(outLength,offset),AlignBytes);
+		memset(out, 0, sizeof(float) * AlignVec(outLength, offset));
+		int outIndex = ideal[imagecnt];
+		if (outIndex < outLength)
+		{
+			out[outIndex] = 1.0;
+		}
+		else
+		{
+			std::cout << "unexpected out index" << std::endl;
+		}
+		idealOut.push_back(out);
 	}
 }
-
+//void snnModel::setBinaryInput(char* totalImg, float* ideal, int imgNum, int blockLength, int outLength)
+//{
+//	InputImageSeries.clear();
+//	idealOut.clear();
+//	dim tsdim(1, TIMESTEP, MNISTBLOCK);
+//	int offset = AlignBytes / sizeof(float);
+//	for (int imagecnt = 0;imagecnt < imgNum;imagecnt++)
+//	{
+//		char* currentBase = totalImg + imagecnt * MNISTBLOCK;
+//		tensor ts;
+//		ts.initData(tsdim);
+//		float* dt = ts.getData();
+//		binaryCode(currentBase, MNISTBLOCK, dt);
+//		InputImageSeries.push_back(ts);
+//		float* out = (float*)_mm_malloc(sizeof(float) * AlignVec(outLength, offset), AlignBytes);
+//		memset(out, 0, sizeof(float) * AlignVec(outLength, offset));
+//		int outIndex = ideal[imagecnt];
+//		if (outIndex < outLength)
+//		{
+//			out[outIndex] = 1.0;
+//		}
+//		else
+//		{
+//			std::cout << "unexpected out index" << std::endl;
+//		}
+//		idealOut.push_back(out);
+//	}
+//}
+//void snnModel::setAveRateInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength)
+//{
+//	InputImageSeries.clear();
+//	idealOut.clear();
+//	dim tsdim(1, TIMESTEP, MNISTBLOCK);
+//	int offset = AlignBytes / sizeof(float);
+//	for (int imagecnt = 0;imagecnt < imgNum;imagecnt++)
+//	{
+//		float* currentBase = totalImg + imagecnt * MNISTBLOCK;
+//		tensor ts;
+//		ts.initData(tsdim);
+//		float* dt = ts.getData();
+//		//banaryCode(currentBase, MNISTBLOCK, dt, TIMESTEP);
+//		aveRateCode(currentBase, MNISTBLOCK, dt);
+//		InputImageSeries.push_back(ts);
+//		float* out = (float*)_mm_malloc(sizeof(float) * AlignVec(outLength, offset), AlignBytes);
+//		memset(out, 0, sizeof(float) * AlignVec(outLength, offset));
+//		int outIndex = ideal[imagecnt];
+//		if (outIndex < outLength)
+//		{
+//			out[outIndex] = 1.0;
+//		}
+//		else
+//		{
+//			std::cout << "unexpected out index" << std::endl;
+//		}
+//		idealOut.push_back(out);
+//	}
+//}
 void snnModel::saveToFile()
 {
 	std::ofstream fo("./model.net", std::ios::trunc);
 	fo << "SNN model" << std::endl;
-	fo << "[Uthr]" << Uthr << std::endl;
-	fo << "[beta]" << beta << std::endl;
-	fo << "[weitInitialsd]" << weitInitialsd << std::endl;
+	fo << "[Uthr]\t" << Uthr << std::endl;
+	fo << "[beta]\t" << beta << std::endl;
+	fo << "[weitInitialsd]\t" << weitInitialsd << std::endl;
 	for (int i = 0;i < mySNNStructure.size();i++)
 	{
 		
 		SNNLayer slayer=mySNNStructure.at(i);
 		tensor W = slayer.getW();
 		float* bData = slayer.getB();
-		for (int j = 0;j < slayer.getInput().getDim().dim3;j++)
+		for (int j = 0;j < slayer.getOut().getDim().dim3;j++)
 		{
-			fo << "[Layer_" << i << "-out_"<<j << "-weights]" ;
+			fo << "[Layer_" << i << "-out_"<<j << "-weights]\t";
 			float* wData = W.getDim3Data(0, j);
-			for (int k = 0;k < slayer.getOut().getDim().dim3;k++)
+			for (int k = 0;k < slayer.getInput().getDim().dim3;k++)
 			{
-				fo << wData[k] << ",";
+				fo << wData[k] << "\t";
 			}
 			fo << std::endl;
 		}
 		fo << "[Layer_" << i  << "-bias]";
 		for (int j = 0;j < slayer.getOut().getDim().dim3;j++)
-		{		
-			fo << bData[j] << ",";
+		{
+			
+			fo << bData[j] << "\t";
 		}
 		fo << std::endl;
 	}
@@ -337,8 +475,30 @@ tensor snnModel::getHiddenOut(int i) //{ return mySNNStructure.at(i).getOut(); }
 	}
 }
 
-bool snnModel::encodeInput(float* imageInput, size_t length, float* spikeInput, float maxValue)
+bool snnModel::encodeInput(float* imageInput, size_t length, float* spikeInput)
 {
-	return myEnCoder.encodeInput(imageInput, length, spikeInput,maxValue);
-
+	switch (encodeMethod)
+	{
+	case 0:
+		latency(imageInput, MNISTBLOCK, spikeInput, TAO, VTHR);
+		break;
+	case 1:
+	{
+		char*  charMnistTEST = (char*)_mm_malloc(TESTNUM * MNISTBLOCK * sizeof(char), AlignBytes);
+		memset(charMnistTEST, 0, TESTNUM * MNISTBLOCK * sizeof(char));
+		for (int i = 0;i < length;i++)
+		{
+			charMnistTEST[i] = char(imageInput[i]);
+		}
+		binaryCode(charMnistTEST, MNISTBLOCK, spikeInput);
+		_mm_free(charMnistTEST);
+		break;
+	}
+	case 2:
+		aveRateCode(imageInput, MNISTBLOCK, spikeInput, VTHR);
+		break;
+	default:
+		break;
+	}
+	return true;
 }

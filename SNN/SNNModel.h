@@ -3,7 +3,7 @@
 #include"SNNLayer.h"
 #include <string.h> 
 #include<QtCharts/qchartview.h>
-#include"enCoder.h"
+
 class snnModel
 {
 public:
@@ -11,13 +11,16 @@ public:
 	~snnModel() {};
 
 public:
-	bool encodeInput(float* imageInput, size_t length, float* spikeInput, float maxValue);
-
-	void buildMyDefaultSNNModel(int LAYER1,int MNISTDIM1,int MNISTDIM2, int OUTCLASS);
+	bool encodeInput(float* imageInput, size_t length, float* spikeInput);
+	bool latency(float* imageInput, size_t length, float* spikeInput, float tao, float Vthr);
+	bool binaryCode(char* imageInput, size_t length, float* spikeInput);
+	bool aveRateCode(float* imageInput, size_t length, float* spikeInput, float Vthr);
+	void buildMyDefaultSNNModel();
 
 	void fowardRecurrentSpikingSimd(tensor ts,int b);
-	void setInput(float* totalImg, float* ideal, int imgNum,int blockLength,int outLength, int MNISTBLOCK, float maxValue);
-
+	void setInput(float* totalImg, float* ideal, int imgNum,int blockLength,int outLength);
+	//void setBinaryInput(char* totalImg, float* ideal, int imgNum, int blockLength, int outLength);
+	//void setAveRateInput(float* totalImg, float* ideal, int imgNum, int blockLength, int outLength);
 	void setBatchsize(int bxs) { batchSize = bxs; };
 	void setLearnRate(float lr) { learnRate = lr; };
 	void setMinLoss(float ml) { minLoss = ml; };
@@ -28,14 +31,14 @@ public:
 	void setReset(int rst) { reset = rst; };
 	void setMaxEpoch(int maxepo) { maxEpoch = maxepo; };
 	void setT(int T) { TIMESTEP = T; }
-	void setTEncodeMethod(int e,int T) { myEnCoder.setEncoer(e,T); }
+	void setTEncodeMethod(int e) { encodeMethod = e; }
 
 	tensor getOutMem() { return mySNNStructure.back().getOutMem(); };
 	tensor getOut() { return mySNNStructure.back().getOut(); };
 	tensor getHiddenOutMem(int i) ;
 	tensor getHiddenOut(int i) ;
 	SNNLayer getSNNLayer(int i) { return mySNNStructure.at(i); };
-	bool getModelBuilt() { return modelBuilt; }
+
 	void createTrainThread();
 private:
 	std::vector<SNNLayer> mySNNStructure;
@@ -44,7 +47,6 @@ private:
 	float calculateC(float* actualy, float* idealx, int sz);
 	template< typename  T>
 	void dcalculateC(T* idealx, T* actualy, T* dyVdx, int sz);
-	bool modelBuilt;
 	int lossType;
 	int maxEpoch;
 	float minLoss;
@@ -58,7 +60,7 @@ private:
 	float beta;
 	float Uthr;
 	int reset;
-	void BPTT();
+	void train();
 	volatile int parrellelIBatchTrainDone;
 	std::condition_variable condC;
 	std::mutex myMutexC;
@@ -67,6 +69,4 @@ private:
 	void saveToFile();
 	int encodeMethod;
 	bool isTrning;
-
-	enCoder myEnCoder;
 };
